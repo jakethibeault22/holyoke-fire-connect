@@ -20,7 +20,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Initialize database
-require('./scripts/init-db');
+try {
+  require('./scripts/init-db');
+  console.log('Database initialized successfully');
+} catch (err) {
+  console.error('Database initialization error:', err);
+  process.exit(1);
+}
 
 // API routes
 const apiRouter = require('./routes/api');

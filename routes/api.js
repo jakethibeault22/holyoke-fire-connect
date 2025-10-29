@@ -38,6 +38,13 @@ const {
 
 // Get database instance
 const dbPath = path.join(__dirname, '../../data/db.sqlite');
+
+// Ensure data directory exists BEFORE creating database connection
+const dataDir = path.join(__dirname, '../../data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
 const db = new Database(dbPath);
 
 // Configure multer for file uploads
