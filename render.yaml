@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: holyoke-fire-connect
+    env: node
+    buildCommand: npm install && npm run build && node scripts/init-db.js
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.20.4
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
