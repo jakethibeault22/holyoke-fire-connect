@@ -6,20 +6,8 @@ services:
     startCommand: npm start
     envVars:
       - key: NODE_VERSION
-        value: 18.17.0
+        value: 18.20.4
     disk:
       name: data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
-```
-
----
-
-## **.gitignore** (root folder)
-```
-node_modules/
-dist/
-data/
-.env
-*.log
-.DS_Store
