@@ -105,7 +105,8 @@ router.get('/users', (req, res) => {
 // Get users by role
 router.get('/users/by-role/:role', (req, res) => {
   const role = req.params.role;
-  res.json(getUsersByRole(role));
+  const users = getUsersByRole(role);
+  res.json(users);
 });
 
 // Get pending users (Admin or Chief)
@@ -358,6 +359,29 @@ router.post('/messages', upload.array('files', 5), (req, res) => {
     console.error('Error sending message:', err);
     res.status(500).json({ error: 'Failed to send message' });
   }
+});
+
+// Get messages in a thread
+router.get('/messages/thread/:threadId', (req, res) => {
+  const threadId = req.params.threadId;
+  const userId = req.query.userId;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  // Verify user is part of this thread
+  const participant = db.prepare(`
+    SELECT * FROM thread_participants 
+    WHERE thread_id = ? AND user_id = ?
+  `).get(threadId, userId);
+  
+  if (!participant) {
+    return res.status(403).json({ error: 'Not authorized to view this thread' });
+  }
+  
+  const messages = getThreadMessages(threadId);
+  res.json(messages);
 });
 
 // Get all messages in a thread
