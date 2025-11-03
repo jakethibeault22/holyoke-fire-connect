@@ -83,16 +83,17 @@ function getUsersByRole(role) {
 }
 
 function canViewBulletin(userId, category) {
-  // ... existing code ...
+  const userRoles = getUserRoles(userId);
+  
   return userRoles.some(role => {
     switch(category) {
       case 'west-wing':
         return true;
       case 'training':
         return true;
-      case 'fire-prevention':  // Changed from fire_prevention
+      case 'fire-prevention':
         return true;
-      case 'repair-division':  // Changed from repair_division
+      case 'repair-division':
         return true;
       case 'alarm-division':
         return role === 'alarm_division' || 

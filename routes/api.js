@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { db } = require('../config/db');
 
+
 const { 
   loginUser, 
   getUserById, 
@@ -311,6 +312,19 @@ router.get('/bulletins/:bulletinId/attachments/:attachmentId', (req, res) => {
     console.error('Error retrieving attachment:', err);
     res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
   }
+});
+
+// Check if user can view a category
+router.get('/bulletins/can-view/:category', (req, res) => {
+  const category = req.params.category;
+  const userId = req.query.userId;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  const canView = canViewBulletin(parseInt(userId), category);
+  res.json({ canView });
 });
 
 // --- Messages ---
