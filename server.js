@@ -12,6 +12,14 @@ app.use(express.urlencoded({ extended: true }));
 // Ensure data directories exist
 const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(dataDir, 'uploads');
+const dbFile = path.join(dataDir, 'db.sqlite');
+
+// TEMPORARY: Delete old database to recreate with all tables
+if (fs.existsSync(dbFile)) {
+  fs.unlinkSync(dbFile);
+  console.log('Old database deleted, will create new one with all tables');
+}
+
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
