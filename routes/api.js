@@ -47,6 +47,14 @@ if (!fs.existsSync(dataDir)) {
 
 const db = new Database(dbPath);
 
+// Ensure data directory exists BEFORE creating database connection
+const dataDir = path.join(__dirname, '../../data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const db = new Database(dbPath);
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
