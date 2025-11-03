@@ -60,6 +60,14 @@ db.exec(`
     FOREIGN KEY (recipient_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS thread_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    last_read_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS attachments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL,
