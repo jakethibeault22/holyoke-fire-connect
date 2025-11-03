@@ -108,6 +108,7 @@ export default function App() {
   const [assignedRole, setAssignedRole] = useState("firefighter");
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const messagesEndRef = useRef(null);
+  const [visibleCategories, setVisibleCategories] = useState([]);
   
   useEffect(() => {
     if (user) {
@@ -118,6 +119,7 @@ export default function App() {
       fetchSent();
       fetchUsers();
       fetchReadStatus();
+	  fetchVisibleCategories();
       if (user.role === 'admin') {
         fetchPendingUsers();
       }
@@ -433,6 +435,25 @@ const fetchBulletins = async (category = 'west-wing') => {
       console.error('Error fetching bulletin attachments:', err);
     }
   };
+  
+  const fetchVisibleCategories = async () => {
+  const categories = ['west-wing', 'training', 'fire-prevention', 'repair-division', 'alarm-division', 'commissioners'];
+  const visible = [];
+  
+  for (const category of categories) {
+    try {
+      const res = await fetch(`/api/bulletins/can-view/${category}?userId=${user.id}`);
+      const data = await res.json();
+      if (data.canView) {
+        visible.push(category);
+      }
+    } catch (err) {
+      console.error(`Error checking permission for ${category}:`, err);
+    }
+  }
+  
+  setVisibleCategories(visible);
+};
 
 const fetchInbox = async () => {
   try {
@@ -1178,6 +1199,7 @@ if (!user) {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
 <div className="flex gap-2 flex-wrap">
+  {/* Chiefs tab is always visible */}
   <button
     onClick={() => handleCategoryChange('west-wing')}
     className={`px-4 py-2 rounded ${
@@ -1192,7 +1214,7 @@ if (!user) {
     )}
   </button>
   
-  {canViewBulletin(user.id, 'training') && (
+  {visibleCategories.includes('training') && (
     <button
       onClick={() => handleCategoryChange('training')}
       className={`px-4 py-2 rounded ${
@@ -1208,7 +1230,7 @@ if (!user) {
     </button>
   )}
   
-  {canViewBulletin(user.id, 'fire-prevention') && (
+  {visibleCategories.includes('fire-prevention') && (
     <button
       onClick={() => handleCategoryChange('fire-prevention')}
       className={`px-4 py-2 rounded ${
@@ -1224,7 +1246,7 @@ if (!user) {
     </button>
   )}
   
-  {canViewBulletin(user.id, 'repair-division') && (
+  {visibleCategories.includes('repair-division') && (
     <button
       onClick={() => handleCategoryChange('repair-division')}
       className={`px-4 py-2 rounded ${
@@ -1240,7 +1262,7 @@ if (!user) {
     </button>
   )}
   
-  {canViewBulletin(user.id, 'alarm-division') && (
+  {visibleCategories.includes('alarm-division') && (
     <button
       onClick={() => handleCategoryChange('alarm-division')}
       className={`px-4 py-2 rounded ${
@@ -1256,7 +1278,7 @@ if (!user) {
     </button>
   )}
   
-  {canViewBulletin(user.id, 'commissioners') && (
+  {visibleCategories.includes('commissioners') && (
     <button
       onClick={() => handleCategoryChange('commissioners')}
       className={`px-4 py-2 rounded ${
