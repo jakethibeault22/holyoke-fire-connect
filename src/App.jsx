@@ -916,6 +916,7 @@ if (!user) {
               <h1 className="text-3xl font-bold text-red-800">Holyoke Fire Connect</h1>
               <p className="text-gray-600 mt-2">Fire Department Communications</p>
             </div>
+
             <div className="space-y-4">
               <input
                 type="text"
@@ -925,6 +926,7 @@ if (!user) {
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
                 className="w-full p-3 border rounded"
               />
+
               <input
                 type="password"
                 placeholder="Password"
@@ -933,12 +935,15 @@ if (!user) {
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
                 className="w-full p-3 border rounded"
               />
+
               {loginError && (
                 <p className="text-red-600 text-sm">{loginError}</p>
               )}
+
               <Button onClick={handleLogin} className="w-full bg-red-800 text-white hover:bg-red-900">
                 Login
               </Button>
+
               <button
                 onClick={() => setShowRegistration(true)}
                 className="w-full text-sm text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2"
@@ -946,19 +951,28 @@ if (!user) {
                 <UserPlus className="h-4 w-4" />
                 New User? Register Here
               </button>
-              
-              <div className="mt-6 pt-4 border-t border-gray-300">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Test Accounts:</p>
-                <div className="space-y-1 text-xs text-gray-600">
-                  <p><span className="font-medium">Admin:</span> admin / admin123</p>
-                  <p><span className="font-medium">Chief:</span> chief / chief123</p>
-                  <p><span className="font-medium">Officer:</span> officer / officer123</p>
-                  <p><span className="font-medium">Firefighter:</span> firefighter / fire123</p>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Right Image */}
+        <div className="hidden lg:block">
+          <img 
+            src="/patch.png" 
+            alt="Fire Department Right" 
+            className="w-96 h-auto rounded-lg"
+          />
+        </div>
+      </div>
+
+      {/* Copyright footer */}
+      <div className="fixed bottom-2 right-4 text-xs text-gray-400">
+        © Jake Thibeault 2025
+      </div>
+    </div>
+  );
+}
+
 
         {/* Right Image */}
         <div className="hidden lg:block">
