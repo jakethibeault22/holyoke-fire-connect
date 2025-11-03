@@ -967,16 +967,6 @@ if (!user) {
                 <UserPlus className="h-4 w-4" />
                 New User? Register Here
               </button>
-              
-              <div className="mt-6 pt-4 border-t border-gray-300">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Test Accounts:</p>
-                <div className="space-y-1 text-xs text-gray-600">
-                  <p><span className="font-medium">Admin:</span> admin / admin123</p>
-                  <p><span className="font-medium">Chief:</span> chief / chief123</p>
-                  <p><span className="font-medium">Officer:</span> officer / officer123</p>
-                  <p><span className="font-medium">Firefighter:</span> firefighter / fire123</p>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
