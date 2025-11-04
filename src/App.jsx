@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Inbox, Megaphone, Send, PlusCircle, Trash2, X, LogOut, Paperclip, Download, Users, Edit, CheckCircle, XCircle, UserPlus, FileText, File } from "lucide-react";
+import { Inbox, Megaphone, Send, PlusCircle, Trash2, X, LogOut, Paperclip, Download, Users, Edit, CheckCircle, XCircle, UserPlus, FileText, File, Menu } from "lucide-react";
 
 function Card({ children, className = "", onClick }) {
   return (
@@ -109,6 +109,7 @@ export default function App() {
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const messagesEndRef = useRef(null);
   const [visibleCategories, setVisibleCategories] = useState([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   useEffect(() => {
     if (user) {
@@ -1093,11 +1094,27 @@ if (!user) {
   // MAIN APP - This should be the final return of the component
   const canPostBulletins = bulletinPermissions.canPost;
   const canDeleteBulletins = bulletinPermissions.canDelete;
+  
+  {/* Mobile Menu Button */}
+<button 
+  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+  className="lg:hidden fixed top-4 left-4 z-50 bg-red-800 text-white p-3 rounded-lg"
+>
+  {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+</button>
 
-  return (
+  r  return (
     <div className="min-h-screen bg-gray-100 flex">
+      {/* Mobile Menu Button */}
+      <button 
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 bg-red-800 text-white p-3 rounded-lg shadow-lg"
+      >
+        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+      </button>
+
       {/* Sidebar Navigation */}
-      <div className="w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
+      <div className={`${mobileMenuOpen ? 'fixed inset-0 z-50' : 'hidden'} lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col`}>
         <div className="mb-12">
           <h1 className="text-xl font-bold">Holyoke Fire Connect</h1>
         </div>
@@ -1183,8 +1200,16 @@ if (!user) {
         </div>
       </div>
 
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 p-4 lg:p-6 overflow-auto">
         {view === "bulletins" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
