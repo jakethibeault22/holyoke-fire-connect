@@ -1098,7 +1098,7 @@ if (!user) {
   {/* Mobile Menu Button */}
 <button 
   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  className="lg:hidden fixed top-4 left-4 z-50 bg-red-800 text-white p-3 rounded-lg"
+  className="lg:hidden fixed top-4 right-4 z-50 bg-red-800 text-white p-3 rounded-lg shadow-lg"
 >
   {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
 </button>
@@ -1689,44 +1689,20 @@ if (!user) {
         {view === "compose" && (
   <div className="flex h-[calc(100vh-8rem)] gap-4">
     {/* Left sidebar - Recipient selection */}
-    <div className="w-1/3 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+<div className="w-full lg:w-1/3 bg-white rounded-lg shadow overflow-hidden flex flex-col">
       <div className="p-4 border-b">
         <h2 className="text-xl font-bold mb-4">New Message</h2>
         
-        {/* Role selection */}
-        <div className="mb-4">
-  <p className="text-sm font-medium mb-2">Send to Roles:</p>
-  <div className="flex flex-wrap gap-2">
-    {Object.entries(ROLE_LABELS)
-      .sort((a, b) => a[1].localeCompare(b[1]))  // Add this line to sort by label
-      .map(([role, label]) => (
-        <button
-          key={role}
-          onClick={() => toggleRole(role)}
-          className={`px-3 py-1 rounded text-sm ${
-            messageToRoles.includes(role)
-              ? 'bg-red-700 text-white'
-              : 'bg-gray-200 hover:bg-gray-300'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-  </div>
-</div>
-
-        {/* Individual user search */}
         <div>
-          <p className="text-sm font-medium mb-2">Or select individuals:</p>
+          <p className="text-sm font-medium mb-2">Search recipients:</p>
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Type to search users..."
             value={messageRecipientSearch}
             onChange={(e) => setMessageRecipientSearch(e.target.value)}
             className="w-full p-2 border rounded mb-2"
           />
           
-          {/* Show users only when searching */}
           {messageRecipientSearch && (
             <div className="border rounded max-h-60 overflow-y-auto">
               {users
@@ -1734,8 +1710,7 @@ if (!user) {
                   const query = messageRecipientSearch.toLowerCase();
                   return (
                     u.name.toLowerCase().includes(query) ||
-                    u.username.toLowerCase().includes(query) ||
-                    (u.roles && u.roles.some(r => ROLE_LABELS[r]?.toLowerCase().includes(query)))
+                    u.username.toLowerCase().includes(query)
                   );
                 })
                 .map(u => (
@@ -1745,70 +1720,34 @@ if (!user) {
                       checked={messageTo.includes(u.id)}
                       onChange={() => toggleRecipient(u.id)}
                     />
-                    <span className="text-sm">
-                      {u.name} ({u.username})
-                      {u.roles && u.roles.length > 0 && (
-                        <span className="text-gray-500 text-xs ml-1">
-                          - {u.roles.map(r => ROLE_LABELS[r]).join(', ')}
-                        </span>
-                      )}
-                    </span>
+                    <span className="text-sm">{u.name}</span>
                   </label>
                 ))}
             </div>
           )}
         </div>
 
-        {/* Selected count */}
- {/* Selected recipients display */}
-<div className="mt-3 p-3 bg-gray-50 rounded border">
-  <p className="text-sm font-semibold mb-2">Selected Recipients:</p>
-  
-  {messageToRoles.length > 0 && (
-    <div className="mb-2">
-      <p className="text-xs font-medium text-gray-600 mb-1">Roles:</p>
-      <div className="flex flex-wrap gap-1">
-        {messageToRoles.map(role => (
-          <span key={role} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded flex items-center gap-1">
-            {ROLE_LABELS[role]}
-            <button 
-              onClick={() => toggleRole(role)}
-              className="hover:bg-red-200 rounded-full p-0.5"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-    </div>
-  )}
-  
-  {messageTo.length > 0 && (
-    <div>
-      <p className="text-xs font-medium text-gray-600 mb-1">Individuals ({messageTo.length}):</p>
-      <div className="flex flex-wrap gap-1">
-        {messageTo.map(userId => {
-          const user = users.find(u => u.id === userId);
-          return user ? (
-            <span key={userId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
-              {user.name}
-              <button 
-                onClick={() => toggleRecipient(userId)}
-                className="hover:bg-blue-200 rounded-full p-0.5"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ) : null;
-        })}
-      </div>
-    </div>
-  )}
-  
-  {messageTo.length === 0 && messageToRoles.length === 0 && (
-    <p className="text-sm text-gray-500 italic">No recipients selected</p>
-  )}
-</div>
+        {messageTo.length > 0 && (
+          <div className="mt-3 p-3 bg-gray-50 rounded border">
+            <p className="text-xs font-semibold mb-2">Selected ({messageTo.length}):</p>
+            <div className="flex flex-wrap gap-1">
+              {messageTo.map(userId => {
+                const selectedUser = users.find(u => u.id === userId);
+                return selectedUser ? (
+                  <span key={userId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
+                    {selectedUser.name}
+                    <button 
+                      onClick={() => toggleRecipient(userId)}
+                      className="hover:bg-blue-200 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ) : null;
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
 
