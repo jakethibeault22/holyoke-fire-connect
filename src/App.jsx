@@ -1103,7 +1103,7 @@ if (!user) {
   {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
 </button>
 
-  r  return (
+    return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Mobile Menu Button */}
       <button 
@@ -1114,7 +1114,7 @@ if (!user) {
       </button>
 
       {/* Sidebar Navigation */}
-      <div className="lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
+      <div className={`${mobileMenuOpen ? 'fixed inset-0 z-50' : 'hidden'} lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col`}>
         <div className="mb-12">
           <h1 className="text-xl font-bold">Holyoke Fire Connect</h1>
         </div>
