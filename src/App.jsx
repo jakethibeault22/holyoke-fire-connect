@@ -1114,7 +1114,7 @@ if (!user) {
       </button>
 
       {/* Sidebar Navigation */}
-      <div className={`${mobileMenuOpen ? 'fixed inset-0 z-50' : 'hidden'} lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col`}>
+      <div className="lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
         <div className="mb-12">
           <h1 className="text-xl font-bold">Holyoke Fire Connect</h1>
         </div>
