@@ -1098,7 +1098,7 @@ if (!user) {
   {/* Mobile Menu Button */}
 <button 
   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  className="lg:hidden fixed top-4 right-4 z-50 bg-red-800 text-white p-3 rounded-lg shadow-lg"
+  className="lg:hidden fixed top-4 right-4 z-[60] bg-red-800 text-white p-3 rounded-lg shadow-lg"
 >
   {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
 </button>
@@ -1686,126 +1686,194 @@ if (!user) {
   </div>
 )}
 
-        {view === "compose" && (
-  <div className="flex h-[calc(100vh-8rem)] gap-4">
-    {/* Left sidebar - Recipient selection */}
-<div className="w-full lg:w-1/3 bg-white rounded-lg shadow overflow-hidden flex flex-col">
-      <div className="p-4 border-b">
-        <h2 className="text-xl font-bold mb-4">New Message</h2>
-        
-        <div>
-          <p className="text-sm font-medium mb-2">Search recipients:</p>
-          <input
-            type="text"
-            placeholder="Type to search users..."
-            value={messageRecipientSearch}
-            onChange={(e) => setMessageRecipientSearch(e.target.value)}
-            className="w-full p-2 border rounded mb-2"
-          />
+{view === "compose" && (
+  <div className="max-w-7xl mx-auto">
+    <div className="mb-6">
+      <h2 className="text-3xl font-bold text-gray-800">New Message</h2>
+      <p className="text-gray-600 mt-1">Compose and send a message to your colleagues</p>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Left Column - Recipients */}
+      <div className="lg:col-span-1">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recipients</h3>
           
+          {/* Search Box */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search Users
+            </label>
+            <input
+              type="text"
+              placeholder="Start typing to search..."
+              value={messageRecipientSearch}
+              onChange={(e) => setMessageRecipientSearch(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          {/* Search Results */}
           {messageRecipientSearch && (
-            <div className="border rounded max-h-60 overflow-y-auto">
-              {users
-                .filter(u => {
+            <div className="mb-4">
+              <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-gray-50">
+                {users
+                  .filter(u => {
+                    const query = messageRecipientSearch.toLowerCase();
+                    return (
+                      u.name.toLowerCase().includes(query) ||
+                      u.username.toLowerCase().includes(query)
+                    );
+                  })
+                  .map(u => (
+                    <label 
+                      key={u.id} 
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={messageTo.includes(u.id)}
+                        onChange={() => toggleRecipient(u.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{u.name}</span>
+                    </label>
+                  ))}
+                {users.filter(u => {
                   const query = messageRecipientSearch.toLowerCase();
-                  return (
-                    u.name.toLowerCase().includes(query) ||
-                    u.username.toLowerCase().includes(query)
-                  );
-                })
-                .map(u => (
-                  <label key={u.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={messageTo.includes(u.id)}
-                      onChange={() => toggleRecipient(u.id)}
-                    />
-                    <span className="text-sm">{u.name}</span>
-                  </label>
-                ))}
+                  return u.name.toLowerCase().includes(query) || u.username.toLowerCase().includes(query);
+                }).length === 0 && (
+                  <div className="px-4 py-8 text-center text-gray-500 text-sm">
+                    No users found
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Selected Recipients */}
+          {messageTo.length > 0 && (
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-gray-700">
+                  Selected ({messageTo.length})
+                </span>
+                <button
+                  onClick={clearAllRecipients}
+                  className="text-xs text-red-600 hover:text-red-800 font-medium"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {messageTo.map(userId => {
+                  const selectedUser = users.find(u => u.id === userId);
+                  return selectedUser ? (
+                    <span 
+                      key={userId} 
+                      className="inline-flex items-center gap-2 bg-white text-gray-700 px-3 py-1.5 rounded-full text-sm border border-gray-200 shadow-sm"
+                    >
+                      {selectedUser.name}
+                      <button 
+                        onClick={() => toggleRecipient(userId)}
+                        className="hover:bg-gray-100 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+
+          {messageTo.length === 0 && !messageRecipientSearch && (
+            <div className="text-center py-8 text-gray-400">
+              <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Search to add recipients</p>
             </div>
           )}
         </div>
-
-        {messageTo.length > 0 && (
-          <div className="mt-3 p-3 bg-gray-50 rounded border">
-            <p className="text-xs font-semibold mb-2">Selected ({messageTo.length}):</p>
-            <div className="flex flex-wrap gap-1">
-              {messageTo.map(userId => {
-                const selectedUser = users.find(u => u.id === userId);
-                return selectedUser ? (
-                  <span key={userId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
-                    {selectedUser.name}
-                    <button 
-                      onClick={() => toggleRecipient(userId)}
-                      className="hover:bg-blue-200 rounded-full p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-
-    {/* Right side - Message composition */}
-    <div className="flex-1 bg-white rounded-lg shadow flex flex-col">
-      <div className="p-4 border-b">
-        <input
-          type="text"
-          placeholder="Subject"
-          value={messageSubject}
-          onChange={(e) => setMessageSubject(e.target.value)}
-          className="w-full p-3 border rounded-lg text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
       </div>
 
-      <div className="flex-1 p-4 bg-gray-50">
-        <textarea
-          value={messageBody}
-          onChange={(e) => setMessageBody(e.target.value)}
-          placeholder="Type your message..."
-          className="w-full h-full p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      <div className="p-4 border-t bg-white">
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 hover:text-gray-800">
-              <Paperclip className="h-4 w-4" />
-              <span>Attach Files</span>
+      {/* Right Column - Message Composition */}
+      <div className="lg:col-span-2">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="space-y-6">
+            {/* Subject */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Subject
+              </label>
               <input
-                type="file"
-                multiple
-                onChange={handleMessageFileChange}
-                className="hidden"
+                type="text"
+                placeholder="Enter message subject..."
+                value={messageSubject}
+                onChange={(e) => setMessageSubject(e.target.value)}
+                className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-            </label>
-            <button
-              onClick={handleSendMessage}
-              disabled={!messageSubject.trim() || !messageBody.trim() || (messageTo.length === 0 && messageToRoles.length === 0)}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Send className="h-4 w-4" />
-              Send Message
-            </button>
-          </div>
-          {messageFiles.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {messageFiles.map((file, i) => (
-                <div key={i} className="bg-gray-100 px-2 py-1 rounded text-xs flex items-center gap-1">
-                  {file.name}
-                  <button onClick={() => removeMessageFile(i)}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
             </div>
-          )}
+
+            {/* Message Body */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Message
+              </label>
+              <textarea
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                placeholder="Type your message here..."
+                rows={12}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors w-fit">
+                <Paperclip className="h-5 w-5 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Attach Files</span>
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleMessageFileChange}
+                  className="hidden"
+                />
+              </label>
+              
+              {messageFiles.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {messageFiles.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Paperclip className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-700">{file.name}</span>
+                        <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                      </div>
+                      <button 
+                        onClick={() => removeMessageFile(i)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Send Button */}
+            <div className="flex justify-end pt-4 border-t">
+              <button
+                onClick={handleSendMessage}
+                disabled={!messageSubject.trim() || !messageBody.trim() || messageTo.length === 0}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg transition-all"
+              >
+                <Send className="h-5 w-5" />
+                Send Message
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
