@@ -1212,114 +1212,119 @@ if (!user) {
       <div className="flex-1 p-4 lg:p-6 overflow-auto">
         {view === "bulletins" && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-<div className="flex gap-2 flex-wrap">
-  {/* Chiefs tab is always visible */}
-  <button
-    onClick={() => handleCategoryChange('west-wing')}
-    className={`px-4 py-2 rounded ${
-      selectedBulletinCategory === 'west-wing'
-        ? 'bg-red-700 text-white'
-        : 'bg-white text-gray-700'
-    }`}
-  >
-    Chiefs
-    {hasUnreadInCategory('west-wing') && (
-      <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+            <div className="space-y-3">
+  {/* Category tabs */}
+  <div className="flex gap-2 flex-wrap">
+    {/* Chiefs tab is always visible */}
+    <button
+      onClick={() => handleCategoryChange('west-wing')}
+      className={`px-4 py-2 rounded ${
+        selectedBulletinCategory === 'west-wing'
+          ? 'bg-red-700 text-white'
+          : 'bg-white text-gray-700'
+      }`}
+    >
+      Chiefs
+      {hasUnreadInCategory('west-wing') && (
+        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+      )}
+    </button>
+    
+    {visibleCategories.includes('training') && (
+      <button
+        onClick={() => handleCategoryChange('training')}
+        className={`px-4 py-2 rounded ${
+          selectedBulletinCategory === 'training'
+            ? 'bg-red-700 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        Training
+        {hasUnreadInCategory('training') && (
+          <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+        )}
+      </button>
     )}
-  </button>
-  
-  {visibleCategories.includes('training') && (
+    
+    {visibleCategories.includes('fire-prevention') && (
+      <button
+        onClick={() => handleCategoryChange('fire-prevention')}
+        className={`px-4 py-2 rounded ${
+          selectedBulletinCategory === 'fire-prevention'
+            ? 'bg-red-700 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        Fire Prevention
+        {hasUnreadInCategory('fire-prevention') && (
+          <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+        )}
+      </button>
+    )}
+    
+    {visibleCategories.includes('repair-division') && (
+      <button
+        onClick={() => handleCategoryChange('repair-division')}
+        className={`px-4 py-2 rounded ${
+          selectedBulletinCategory === 'repair-division'
+            ? 'bg-red-700 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        Repair Division
+        {hasUnreadInCategory('repair-division') && (
+          <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+        )}
+      </button>
+    )}
+    
+    {visibleCategories.includes('alarm-division') && (
+      <button
+        onClick={() => handleCategoryChange('alarm-division')}
+        className={`px-4 py-2 rounded ${
+          selectedBulletinCategory === 'alarm-division'
+            ? 'bg-red-700 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        Alarm Division
+        {hasUnreadInCategory('alarm-division') && (
+          <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+        )}
+      </button>
+    )}
+    
+    {visibleCategories.includes('commissioners') && (
+      <button
+        onClick={() => handleCategoryChange('commissioners')}
+        className={`px-4 py-2 rounded ${
+          selectedBulletinCategory === 'commissioners'
+            ? 'bg-red-700 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        Commissioners
+        {hasUnreadInCategory('commissioners') && (
+          <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
+        )}
+      </button>
+    )}
+  </div>
+
+  {/* Post Bulletin button - full width below categories */}
+  {(bulletinPermissions.canPost || user.role === 'admin') && (
     <button
-      onClick={() => handleCategoryChange('training')}
-      className={`px-4 py-2 rounded ${
-        selectedBulletinCategory === 'training'
-          ? 'bg-red-700 text-white'
-          : 'bg-white text-gray-700'
-      }`}
+      onClick={() => {
+        setBulletinCategory(selectedBulletinCategory);
+        setShowBulletinForm(true);
+      }}
+      className="w-full bg-red-700 text-white px-4 py-3 rounded-lg font-semibold hover:bg-red-800 transition flex items-center justify-center gap-2"
     >
-      Training
-      {hasUnreadInCategory('training') && (
-        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
-      )}
-    </button>
-  )}
-  
-  {visibleCategories.includes('fire-prevention') && (
-    <button
-      onClick={() => handleCategoryChange('fire-prevention')}
-      className={`px-4 py-2 rounded ${
-        selectedBulletinCategory === 'fire-prevention'
-          ? 'bg-red-700 text-white'
-          : 'bg-white text-gray-700'
-      }`}
-    >
-      Fire Prevention
-      {hasUnreadInCategory('fire-prevention') && (
-        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
-      )}
-    </button>
-  )}
-  
-  {visibleCategories.includes('repair-division') && (
-    <button
-      onClick={() => handleCategoryChange('repair-division')}
-      className={`px-4 py-2 rounded ${
-        selectedBulletinCategory === 'repair-division'
-          ? 'bg-red-700 text-white'
-          : 'bg-white text-gray-700'
-      }`}
-    >
-      Repair Division
-      {hasUnreadInCategory('repair-division') && (
-        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
-      )}
-    </button>
-  )}
-  
-  {visibleCategories.includes('alarm-division') && (
-    <button
-      onClick={() => handleCategoryChange('alarm-division')}
-      className={`px-4 py-2 rounded ${
-        selectedBulletinCategory === 'alarm-division'
-          ? 'bg-red-700 text-white'
-          : 'bg-white text-gray-700'
-      }`}
-    >
-      Alarm Division
-      {hasUnreadInCategory('alarm-division') && (
-        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
-      )}
-    </button>
-  )}
-  
-  {visibleCategories.includes('commissioners') && (
-    <button
-      onClick={() => handleCategoryChange('commissioners')}
-      className={`px-4 py-2 rounded ${
-        selectedBulletinCategory === 'commissioners'
-          ? 'bg-red-700 text-white'
-          : 'bg-white text-gray-700'
-      }`}
-    >
-      Commissioners
-      {hasUnreadInCategory('commissioners') && (
-        <span className="ml-2 inline-block h-2 w-2 bg-yellow-400 rounded-full"></span>
-      )}
+      <PlusCircle className="h-5 w-5" />
+      Post Bulletin
     </button>
   )}
 </div>
-
-              {(bulletinPermissions.canPost || user.role === 'admin') && (
-                <Button onClick={() => {
-  setBulletinCategory(selectedBulletinCategory);
-  setShowBulletinForm(true);
-}}>
-  <PlusCircle className="h-4 w-4 mr-2" />
-  Post Bulletin
-</Button>
-              )}
-            </div>
 
             {showBulletinForm && (
               <Card>
@@ -1338,8 +1343,8 @@ if (!user) {
 >
   <option value="west-wing">Chiefs</option>
   <option value="training">Training</option>
-  <option value="fire_prevention">Fire Prevention</option>
-  <option value="repair_division">Repair Division</option>
+  <option value="fire-prevention">Fire Prevention</option>
+  <option value="repair-division">Repair Division</option>
   <option value="alarm-division">Alarm Division</option>
   <option value="commissioners">Commissioners</option>
 </select>
