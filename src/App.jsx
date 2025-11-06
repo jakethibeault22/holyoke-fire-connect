@@ -1691,6 +1691,235 @@ if (!user) {
   </div>
 )}
 
+REPLACE WITH THIS REDESIGNED VERSION:
+
+        {view === "inbox" && (
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-3xl font-bold text-gray-800">Messages</h2>
+              <p className="text-gray-600 mt-1">View and respond to your conversations</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
+              {/* Left Column - Conversation List */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
+                  <div className="p-4 border-b bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto">
+                    {inbox.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Inbox className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p className="text-gray-500 text-sm">No messages yet</p>
+                      </div>
+                    ) : (
+                      inbox.map(msg => {
+                        const isActive = selectedThread === msg.thread_id;
+                        const unread = !readMessages.includes(msg.id);
+                        
+                        return (
+                          <div
+                            key={msg.id}
+                            onClick={() => {
+                              setSelectedThread(msg.thread_id);
+                              fetchThreadMessages(msg.thread_id);
+                              if (unread) markMessageAsRead(msg.id);
+                            }}
+                            className={`p-4 border-b cursor-pointer transition-colors ${
+                              isActive 
+                                ? 'bg-blue-50 border-l-4 border-l-blue-600' 
+                                : 'hover:bg-gray-50'
+                            } ${unread && !isActive ? 'bg-yellow-50' : ''}`}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <h3 className={`font-semibold text-sm ${unread ? 'text-gray-900' : 'text-gray-700'}`}>
+                                {msg.subject}
+                              </h3>
+                              {msg.message_count > 1 && (
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+                                  {msg.message_count}
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-sm ${unread ? 'text-gray-700 font-medium' : 'text-gray-600'}`}>
+                              {msg.sender_name}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {new Date(msg.created_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Conversation View */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
+                  {selectedThread ? (
+                    <>
+                      {/* Conversation Header */}
+                      <div className="p-6 border-b bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-800 mb-1">
+                              {threadMessages[selectedThread]?.[0]?.subject || 'Conversation'}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {threadMessages[selectedThread]?.length || 0} messages
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              With: {[...new Set(threadMessages[selectedThread]?.map(m => m.sender_name))].filter(name => name !== user.name).join(', ')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const threadToDelete = inbox.find(m => m.thread_id === selectedThread);
+                              if (threadToDelete) handleDeleteMessage(threadToDelete.id);
+                            }}
+                            className="text-red-600 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Messages Area */}
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                        {threadMessages[selectedThread]?.map((msg) => {
+                          const isFromMe = msg.sender_id === user.id;
+                          
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[75%] rounded-lg p-4 shadow-sm ${
+                                  isFromMe
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white border border-gray-200'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-xs font-semibold">
+                                    {isFromMe ? 'You' : msg.sender_name}
+                                  </span>
+                                  <span className={`text-xs ${isFromMe ? 'text-blue-100' : 'text-gray-400'}`}>
+                                    {new Date(msg.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </div>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.body}</p>
+                                
+                                {messageAttachments[msg.id]?.length > 0 && (
+                                  <div className="mt-3 space-y-1 pt-2 border-t border-opacity-20" style={{borderColor: isFromMe ? 'white' : '#e5e7eb'}}>
+                                    {messageAttachments[msg.id].map(att => (
+                                      <a
+                                        key={att.id}
+                                        href={`/api/messages/${msg.id}/attachments/${att.id}`}
+                                        download
+                                        className={`flex items-center gap-2 text-xs ${
+                                          isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'
+                                        }`}
+                                      >
+                                        <Download className="h-3 w-3" />
+                                        {att.filename}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+
+                      {/* Reply Area */}
+                      <div className="p-6 border-t bg-white">
+                        <div className="space-y-3">
+                          <textarea
+                            value={quickReply}
+                            onChange={(e) => setQuickReply(e.target.value)}
+                            placeholder="Type your reply..."
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleQuickReply();
+                              }
+                            }}
+                          />
+                          
+                          {quickReplyFiles.length > 0 && (
+                            <div className="flex gap-2 flex-wrap">
+                              {quickReplyFiles.map((file, i) => (
+                                <div key={i} className="bg-gray-100 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-gray-200">
+                                  <Paperclip className="h-3 w-3 text-gray-500" />
+                                  <span className="text-gray-700">{file.name}</span>
+                                  <button 
+                                    onClick={() => setQuickReplyFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="hover:bg-gray-200 rounded p-0.5"
+                                  >
+                                    <X className="h-3 w-3 text-gray-600" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-center">
+                            <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                              <Paperclip className="h-4 w-4 text-gray-600" />
+                              <span className="text-sm font-medium text-gray-700">Attach Files</span>
+                              <input
+                                type="file"
+                                multiple
+                                onChange={(e) => setQuickReplyFiles(Array.from(e.target.files))}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              onClick={handleQuickReply}
+                              disabled={!quickReply.trim()}
+                              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg transition-all"
+                            >
+                              <Send className="h-4 w-4" />
+                              Send Reply
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-gray-400">
+                      <div className="text-center">
+                        <Inbox className="h-20 w-20 mx-auto mb-4 opacity-30" />
+                        <p className="text-lg font-medium text-gray-500">Select a conversation</p>
+                        <p className="text-sm text-gray-400 mt-1">Choose a message from the list to view and reply</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 {view === "compose" && (
   <div className="max-w-7xl mx-auto">
     <div className="mb-6">
