@@ -1511,8 +1511,8 @@ if (!user) {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 200px)' }}>
-              {/* Left Column - Conversation List */}
-              <div className="lg:col-span-1">
+{/* Left Column - Conversation List */}
+<div className="lg:col-span-1" style={{ height: 'calc(100vh - 200px)' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   <div className="p-4 border-b bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
@@ -1572,8 +1572,8 @@ if (!user) {
                 </div>
               </div>
 
-              {/* Right Column - Conversation View */}
-              <div className="lg:col-span-2">
+{/* Right Column - Conversation View */}
+<div className="lg:col-span-2" style={{ height: 'calc(100vh - 200px)' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   {selectedThread ? (
                     <>
