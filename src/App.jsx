@@ -1510,7 +1510,7 @@ if (!user) {
               <p className="text-gray-600 mt-1">View and respond to your conversations</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 200px)' }}>
               {/* Left Column - Conversation List */}
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
@@ -1605,7 +1605,7 @@ if (!user) {
                       </div>
 
                       {/* Messages Area */}
-                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50" style={{ maxHeight: '100%' }}>
                         {threadMessages[selectedThread]?.map((msg) => {
                           const isFromMe = msg.sender_id === user.id;
                           
