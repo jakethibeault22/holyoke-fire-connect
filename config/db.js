@@ -4,7 +4,12 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  host: 'db.elvkfezgjhqjbtsnpvod.supabase.co',
+  port: 5432,
+  database: 'postgres',
+  user: 'postgres',
+  password: 'afrUM6rFojLEHP6H'
 });
 
 // Test connection
