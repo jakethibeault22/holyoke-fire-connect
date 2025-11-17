@@ -2348,7 +2348,7 @@ if (!user) {
     {showCreateUserForm && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <Card className="w-full max-w-md bg-white">
-          <CardContent className="bg-white">
+         <Card className="w-full max-w-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Create New User</h3>
               <button onClick={() => setShowCreateUserForm(false)}>
