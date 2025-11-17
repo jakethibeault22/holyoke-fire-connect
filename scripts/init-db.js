@@ -1,145 +1,168 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { pool } = require('../config/db');
 const crypto = require('crypto');
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-const dataDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, 'db.sqlite');
-const db = new Database(dbPath);
-
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    is_admin INTEGER DEFAULT 0,
-    role TEXT DEFAULT 'firefighter',
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS user_roles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, role)
-  );
-
-  CREATE TABLE IF NOT EXISTS bulletins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    category TEXT DEFAULT 'west-wing',
-    user_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender_id INTEGER NOT NULL,
-    recipient_id INTEGER NOT NULL,
-    subject TEXT NOT NULL,
-    body TEXT NOT NULL,
-    thread_id TEXT,
-    parent_message_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sender_id) REFERENCES users(id),
-    FOREIGN KEY (recipient_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS thread_participants (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    thread_id TEXT NOT NULL,
-    user_id INTEGER NOT NULL,
-    last_read_at DATETIME,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS attachments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT NOT NULL,
-    original_filename TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    file_size INTEGER NOT NULL,
-    mime_type TEXT NOT NULL,
-    bulletin_id INTEGER,
-    message_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (bulletin_id) REFERENCES bulletins(id) ON DELETE CASCADE,
-    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS bulletin_reads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    bulletin_id INTEGER NOT NULL,
-    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (bulletin_id) REFERENCES bulletins(id) ON DELETE CASCADE,
-    UNIQUE(user_id, bulletin_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS message_reads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    message_id INTEGER NOT NULL,
-    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
-    UNIQUE(user_id, message_id)
-  );
-`);
-
-// Check if admin user exists, if not create default users
-const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-
-if (!adminExists) {
-  console.log('Creating default users...');
+async function initDatabase() {
+  const client = await pool.connect();
   
-  const users = [
-    { email: 'admin@holyokefd.gov', name: 'Admin User', username: 'admin', password: 'admin123', role: 'admin', isAdmin: 1 },
-    { email: 'chief@holyokefd.gov', name: 'Fire Chief', username: 'chief', password: 'chief123', role: 'chief', isAdmin: 0 },
-    { email: 'officer@holyokefd.gov', name: 'Officer Smith', username: 'officer', password: 'officer123', role: 'officer', isAdmin: 0 },
-    { email: 'firefighter@holyokefd.gov', name: 'Firefighter Jones', username: 'firefighter', password: 'fire123', role: 'firefighter', isAdmin: 0 }
-  ];
-
-  const insertUser = db.prepare(
-    'INSERT INTO users (email, name, username, password_hash, is_admin, role, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  );
-
-  const insertRole = db.prepare(
-    'INSERT INTO user_roles (user_id, role) VALUES (?, ?)'
-  );
-
-  users.forEach(user => {
-    const result = insertUser.run(
-      user.email,
-      user.name,
-      user.username,
-      hashPassword(user.password),
-      user.isAdmin,
-      user.role,
-      'active'
+  try {
+    await client.query('BEGIN');
+    
+    console.log('Creating tables...');
+    
+    // Users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        is_admin INTEGER DEFAULT 0,
+        role VARCHAR(50) DEFAULT 'firefighter',
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // User roles table (for multiple roles)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_roles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(50) NOT NULL,
+        UNIQUE(user_id, role)
+      )
+    `);
+    
+    // Bulletins table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bulletins (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        category VARCHAR(50) DEFAULT 'west-wing',
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Messages table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        thread_id INTEGER,
+        parent_message_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Thread participants table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS thread_participants (
+        id SERIAL PRIMARY KEY,
+        thread_id INTEGER NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(thread_id, user_id)
+      )
+    `);
+    
+    // Attachments table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS attachments (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        mime_type VARCHAR(100),
+        bulletin_id INTEGER REFERENCES bulletins(id) ON DELETE CASCADE,
+        message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Bulletin reads table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bulletin_reads (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        bulletin_id INTEGER REFERENCES bulletins(id) ON DELETE CASCADE,
+        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, bulletin_id)
+      )
+    `);
+    
+    // Message reads table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS message_reads (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, message_id)
+      )
+    `);
+    
+    console.log('Tables created successfully');
+    
+    // Check if super admin exists
+    const adminCheck = await client.query(
+      "SELECT * FROM users WHERE username = 'admin'"
     );
     
-    insertRole.run(result.lastInsertRowid, user.role);
-  });
-
-  console.log('Default users created successfully!');
+    if (adminCheck.rows.length === 0) {
+      console.log('Creating super admin user...');
+      const adminPassword = hashPassword('admin123');
+      
+      const result = await client.query(
+        `INSERT INTO users (email, name, username, password_hash, is_admin, role, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        ['admin@holyokefire.com', 'Administrator', 'admin', adminPassword, 1, 'admin', 'active']
+      );
+      
+      const adminId = result.rows[0].id;
+      
+      // Add admin role to user_roles table
+      await client.query(
+        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
+        [adminId, 'admin']
+      );
+      
+      console.log('Super admin created (username: admin, password: admin123)');
+    } else {
+      console.log('Super admin already exists');
+    }
+    
+    await client.query('COMMIT');
+    console.log('Database initialization completed successfully');
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error initializing database:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
-db.close();
-console.log('Database initialized successfully!');
+// Run initialization
+initDatabase()
+  .then(() => {
+    console.log('✓ Database ready');
+    process.exit(0);
+  })
+  .catch(err => {
+    console.error('✗ Database initialization failed:', err);
+    process.exit(1);
+  });
+
+module.exports = { initDatabase };

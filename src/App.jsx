@@ -2581,7 +2581,7 @@ className="w-full p-2 border rounded"
 }  
       {/* Copyright footer */}
       <div className="fixed bottom-2 right-4 text-xs text-gray-400">
-        © Jake Thibeault 2025
+        © Dylan Donicz 2025
       </div>
     </div>
   );

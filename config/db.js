@@ -1,10 +1,20 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 
-const dbPath = path.join(__dirname, '../data/db.sqlite');
-const db = new Database(dbPath);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+// Test connection
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('Error connecting to PostgreSQL database:', err.stack);
+  } else {
+    console.log('Successfully connected to PostgreSQL database');
+    release();
+  }
+});
 
-module.exports = { db };
+module.exports = { pool };
