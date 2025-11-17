@@ -2309,6 +2309,167 @@ if (!user) {
     )}
   </div>
 </div>
+{/* Modals */}
+    {approvingUser && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <Card className="w-full max-w-md bg-white">
+          <CardContent className="bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Approve User</h3>
+              <button onClick={() => setApprovingUser(null)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4">
+              Approve <strong>{approvingUser.name}</strong> and assign a role:
+            </p>
+            <select
+              value={assignedRole}
+              onChange={(e) => setAssignedRole(e.target.value)}
+              className="w-full p-2 border rounded mb-4"
+            >
+              {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                <option key={role} value={role}>{label}</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <Button onClick={handleApproveUser} className="flex-1">
+                Approve
+              </Button>
+              <Button variant="secondary" onClick={() => setApprovingUser(null)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )}
+
+    {showCreateUserForm && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <Card className="w-full max-w-md bg-white">
+          <CardContent className="bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Create New User</h3>
+              <button onClick={() => setShowCreateUserForm(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="email"
+                placeholder="Email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Username"
+                value={newUserUsername}
+                onChange={(e) => setNewUserUsername(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <div>
+                <p className="text-sm font-medium mb-2">Role:</p>
+                <div className="space-y-2">
+                  {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                    <label key={role} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        type="radio"
+                        name="newUserRole"
+                        checked={newUserRoles[0] === role}
+                        onChange={() => setNewUserRoles([role])}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button 
+                onClick={async () => {
+                  if (!newUserEmail.trim() || !newUserName.trim() || !newUserUsername.trim() || !newUserPassword.trim()) {
+                    alert('Please fill in all fields');
+                    return;
+                  }
+
+                  try {
+                    const res = await fetch('/api/admin/users', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        email: newUserEmail,
+                        name: newUserName,
+                        username: newUserUsername,
+                        password: newUserPassword,
+                        roles: newUserRoles,
+                        requestingUserId: user.id
+                      })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                      setNewUserEmail("");
+                      setNewUserName("");
+                      setNewUserUsername("");
+                      setNewUserPassword("");
+                      setNewUserRoles(["firefighter"]);
+                      setShowCreateUserForm(false);
+                      fetchUsers();
+                      alert('User created successfully');
+                    } else if (data.error) {
+                      alert(data.error);
+                    }
+                  } catch (err) {
+                    console.error('Error creating user:', err);
+                    alert('Failed to create user');
+                  }
+                }}
+                className="w-full"
+              >
+                Create User
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )}
+
+    {resetPasswordUserId && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <Card className="w-full max-w-md bg-white">
+          <CardContent className="bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Reset Password</h3>
+              <button onClick={() => {
+                setResetPasswordUserId(null);
+                setResetPasswordValue("");
+              }}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                placeholder="New Password"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                className="w-full p-2 border rounde
 	  
       {/* Copyright footer */}
       <div className="fixed bottom-2 right-4 text-xs text-gray-400">
