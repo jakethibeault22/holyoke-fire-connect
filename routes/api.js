@@ -612,4 +612,61 @@ router.post('/admin/users/:id/reset-password', (req, res) => {
   }
 });
 
+// ADMIN: Export database as SQL backup
+router.get('/admin/export-sql', (req, res) => {
+  const { userId } = req.query;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  const user = getUserById(parseInt(userId));
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const tables = db.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' 
+      AND name NOT LIKE 'sqlite_%'
+    `).all();
+    
+    let sql = '-- Holyoke Fire Connect Database Backup\n';
+    sql += `-- Generated: ${new Date().toISOString()}\n\n`;
+    
+    tables.forEach(({ name }) => {
+      sql += `\n-- Table: ${name}\n`;
+      
+      try {
+        const rows = db.prepare(`SELECT * FROM ${name}`).all();
+        
+        if (rows.length > 0) {
+          rows.forEach(row => {
+            const columns = Object.keys(row);
+            const values = Object.values(row).map(v => {
+              if (v === null) return 'NULL';
+              if (typeof v === 'string') return `'${v.replace(/'/g, "''")}'`;
+              return v;
+            });
+            
+            sql += `INSERT INTO ${name} (${columns.join(', ')}) VALUES (${values.join(', ')});\n`;
+          });
+        }
+      } catch (err) {
+        console.error(`Error exporting table ${name}:`, err);
+      }
+    });
+    
+    const filename = `holyoke-fire-backup-${Date.now()}.sql`;
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(sql);
+    
+  } catch (err) {
+    console.error('Error creating backup:', err);
+    res.status(500).json({ error: 'Backup failed', details: err.message });
+  }
+});
+
 module.exports = router;
