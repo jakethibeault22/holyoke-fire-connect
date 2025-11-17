@@ -2469,7 +2469,28 @@ if (!user) {
                 placeholder="New Password"
                 value={resetPasswordValue}
                 onChange={(e) => setResetPasswordValue(e.target.value)}
-                className="w-full p-2 border rounde
+className="w-full p-2 border rounded"
+              />
+              <div className="flex gap-2">
+                <Button onClick={handleResetPassword} className="flex-1">
+                  Reset Password
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setResetPasswordUserId(null);
+                    setResetPasswordValue("");
+                  }} 
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )}
 	  
       {/* Copyright footer */}
       <div className="fixed bottom-2 right-4 text-xs text-gray-400">
