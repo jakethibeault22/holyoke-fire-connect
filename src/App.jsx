@@ -1095,13 +1095,6 @@ if (!user) {
   const canPostBulletins = bulletinPermissions.canPost;
   const canDeleteBulletins = bulletinPermissions.canDelete;
   
-  {/* Mobile Menu Button */}
-<button 
-  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  className="lg:hidden fixed top-4 right-4 z-[60] bg-red-800 text-white p-3 rounded-lg shadow-lg"
->
-  {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-</button>
 
     return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -1114,7 +1107,7 @@ if (!user) {
       </button>
 
       {/* Sidebar Navigation */}
-      <div className={`${mobileMenuOpen ? 'fixed inset-0 z-50' : 'hidden'} lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col`}>
+      <div className="hidden lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
         <div className="mb-12">
           <h1 className="text-xl font-bold">Holyoke Fire Connect</h1>
         </div>
@@ -1200,16 +1193,8 @@ if (!user) {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
       {/* Main Content Area */}
-      <div className="flex-1 p-4 lg:p-6 overflow-auto">
+      <div className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 overflow-auto">
         {view === "bulletins" && (
           <div className="space-y-4">
             <div className="space-y-3">
@@ -2405,6 +2390,86 @@ if (!user) {
 )}
       </div>
       
+	  {/* Mobile Bottom Navigation */}
+<div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+  <div className="grid grid-cols-4 h-16">
+    {/* Bulletins */}
+    <button
+      onClick={() => setView("bulletins")}
+      className={`flex flex-col items-center justify-center gap-1 ${
+        view === "bulletins" ? "text-red-700 bg-red-50" : "text-gray-600"
+      }`}
+    >
+      <div className="relative">
+        <Megaphone className="h-5 w-5" />
+        {allBulletins.filter(b => !readBulletins.includes(b.id)).length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+            {allBulletins.filter(b => !readBulletins.includes(b.id)).length}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] font-medium">Bulletins</span>
+    </button>
+
+    {/* Inbox */}
+    <button
+      onClick={() => setView("inbox")}
+      className={`flex flex-col items-center justify-center gap-1 ${
+        view === "inbox" ? "text-red-700 bg-red-50" : "text-gray-600"
+      }`}
+    >
+      <div className="relative">
+        <Inbox className="h-5 w-5" />
+        {inbox.filter(msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id).length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+            {inbox.filter(msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id).length}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] font-medium">Inbox</span>
+    </button>
+
+    {/* New Message */}
+    <button
+      onClick={() => setView("compose")}
+      className={`flex flex-col items-center justify-center gap-1 ${
+        view === "compose" ? "text-red-700 bg-red-50" : "text-gray-600"
+      }`}
+    >
+      <PlusCircle className="h-5 w-5" />
+      <span className="text-[10px] font-medium">New</span>
+    </button>
+
+    {/* Admin Panel or Logout */}
+    {user.role === 'admin' ? (
+      <button
+        onClick={() => setView("users")}
+        className={`flex flex-col items-center justify-center gap-1 ${
+          view === "users" ? "text-red-700 bg-red-50" : "text-gray-600"
+        }`}
+      >
+        <div className="relative">
+          <Users className="h-5 w-5" />
+          {pendingUsers.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              {pendingUsers.length}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] font-medium">Admin</span>
+      </button>
+    ) : (
+      <button
+        onClick={handleLogout}
+        className="flex flex-col items-center justify-center gap-1 text-gray-600"
+      >
+        <LogOut className="h-5 w-5" />
+        <span className="text-[10px] font-medium">Logout</span>
+      </button>
+    )}
+  </div>
+</div>
+	  
       {/* Copyright footer */}
       <div className="fixed bottom-2 right-4 text-xs text-gray-400">
         © Jake Thibeault 2025
