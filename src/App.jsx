@@ -1634,23 +1634,64 @@ if (!user) {
                                 </div>
                                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.body}</p>
                                 
-                                {messageAttachments[msg.id]?.length > 0 && (
-                                  <div className="mt-3 space-y-1 pt-2 border-t border-opacity-20" style={{borderColor: isFromMe ? 'white' : '#e5e7eb'}}>
-                                    {messageAttachments[msg.id].map(att => (
-                                      <a
-                                        key={att.id}
-                                        href={`/api/messages/${msg.id}/attachments/${att.id}`}
-                                        download
-                                        className={`flex items-center gap-2 text-xs ${
-                                          isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'
-                                        }`}
-                                      >
-                                        <Download className="h-3 w-3" />
-                                        {att.filename}
-                                      </a>
-                                    ))}
-                                  </div>
-                                )}
+{messageAttachments[msg.id]?.length > 0 && (
+  <div className="mt-3 space-y-3 pt-3 border-t border-opacity-20" style={{borderColor: isFromMe ? 'white' : '#e5e7eb'}}>
+    {messageAttachments[msg.id].map(att => (
+      <div key={att.id}>
+        {isImageFile(att.filename) ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium">{att.filename}</span>
+              
+                href={`/api/messages/${msg.id}/attachments/${att.id}`}
+                download
+                className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
+              >
+                <Download className="h-4 w-4" />
+              </a>
+            </div>
+            <img
+              src={`/api/messages/${msg.id}/attachments/${att.id}`}
+              alt={att.filename}
+              className="max-w-full h-auto rounded border"
+              style={{ maxHeight: '300px' }}
+            />
+          </div>
+        ) : isPDFFile(att.filename) ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium">{att.filename}</span>
+              
+                href={`/api/messages/${msg.id}/attachments/${att.id}`}
+                download
+                className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
+              >
+                <Download className="h-4 w-4" />
+              </a>
+            </div>
+            <iframe
+              src={`/api/messages/${msg.id}/attachments/${att.id}`}
+              className="w-full border rounded"
+              style={{ height: '400px' }}
+              title={att.filename}
+            />
+          </div>
+        ) : (
+          
+            href={`/api/messages/${msg.id}/attachments/${att.id}`}
+            download
+            className={`flex items-center gap-2 text-xs ${
+              isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'
+            }`}
+          >
+            <Download className="h-3 w-3" />
+            {att.filename}
+          </a>
+        )}
+      </div>
+    ))}
+  </div>
+)}
                               </div>
                             </div>
                           );
