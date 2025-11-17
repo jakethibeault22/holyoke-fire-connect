@@ -1098,13 +1098,7 @@ if (!user) {
 
     return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Mobile Menu Button */}
-      <button 
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-red-800 text-white p-3 rounded-lg shadow-lg"
-      >
-        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-      </button>
+
 
       {/* Sidebar Navigation */}
       <div className="hidden lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
