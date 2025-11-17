@@ -4,12 +4,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
-  },
-  host: 'db.elvkfezgjhqjbtsnpvod.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: 'afrUM6rFojLEHP6H'
+  }
 });
 
 // Test connection
@@ -23,3 +18,8 @@ pool.connect((err, client, release) => {
 });
 
 module.exports = { pool };
+```
+
+**AND update your DATABASE_URL in Render to use the transaction pooler:**
+```
+postgresql://postgres.elvkfezgjhqjbtsnpvod:afrUM6rFojLEHP6H@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
