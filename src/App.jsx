@@ -1642,7 +1642,7 @@ if (!user) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-              
+              <a
                 href={`/api/messages/${msg.id}/attachments/${att.id}`}
                 download
                 className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
@@ -1661,7 +1661,7 @@ if (!user) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-              
+              <a
                 href={`/api/messages/${msg.id}/attachments/${att.id}`}
                 download
                 className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
@@ -1677,7 +1677,7 @@ if (!user) {
             />
           </div>
         ) : (
-          
+          <a
             href={`/api/messages/${msg.id}/attachments/${att.id}`}
             download
             className={`flex items-center gap-2 text-xs ${
