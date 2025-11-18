@@ -24,5 +24,12 @@
   },
   "engines": {
     "node": "20.x"
-  }
+  },
+  "browserslist": [
+    "> 0.5%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11",
+    "Samsung >= 8"
+  ]
 }
