@@ -2577,5 +2577,3 @@ className="w-full p-2 border rounded"
         © Jake Thibeault 2025
       </div>
     </div>
-  );
-}  
