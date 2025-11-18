@@ -6,7 +6,9 @@ export default defineConfig({
   build: {
     target: 'es2015',
     outDir: 'dist',
-    polyfillModulePreload: true,
+    modulePreload: {
+      polyfill: true
+    },
     rollupOptions: {
       output: {
         manualChunks: undefined
@@ -14,8 +16,7 @@ export default defineConfig({
     }
   },
   esbuild: {
-    target: 'es2015',
-    jsxInject: `import React from 'react'`
+    target: 'es2015'
   },
   optimizeDeps: {
     esbuildOptions: {
