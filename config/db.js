@@ -18,8 +18,3 @@ pool.connect((err, client, release) => {
 });
 
 module.exports = { pool };
-```
-
-**AND update your DATABASE_URL in Render to use the transaction pooler:**
-```
-postgresql://postgres.elvkfezgjhqjbtsnpvod:afrUM6rFojLEHP6H@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
