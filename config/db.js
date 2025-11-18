@@ -1,14 +1,16 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: 'aws-0-us-east-1.pooler.supabase.com',
-  port: 6543,
+  host: 'db.elvkfezgjhqjbtsnpvod.supabase.co',
+  port: 5432,
   database: 'postgres',
-  user: 'postgres.elvkfezgjhqjbtsnpvod',
+  user: 'postgres',
   password: 'afrUM6rFojLEHP6H',
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  // Force IPv4
+  options: '-c search_path=public'
 });
 
 // Test connection
