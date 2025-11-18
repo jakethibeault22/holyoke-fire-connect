@@ -1,16 +1,10 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: 'db.elvkfezgjhqjbtsnpvod.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: 'afrUM6rFojLEHP6H',
-  ssl: {
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL.includes('localhost') ? false : {
     rejectUnauthorized: false
-  },
-  // Force IPv4
-  options: '-c search_path=public'
+  }
 });
 
 // Test connection
