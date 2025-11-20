@@ -559,7 +559,7 @@ async function deleteUser(userId, requestingUserId) {
 
 async function resetPassword(userId, newPassword, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
+  if (!requestingUser || (requestingUser.role !== 'admin' && requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('admin') && !requestingUser.roles?.includes('super_user'))) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
