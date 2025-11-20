@@ -1978,10 +1978,19 @@ if (!user) {
         )}
         {view === "users" && user.role === 'admin' && (
           <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
-              <p className="text-gray-600 mt-1">Manage users, roles, and pending approvals</p>
-            </div>
+            <div className="mb-6 flex justify-between items-start">
+  <div>
+    <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
+    <p className="text-gray-600 mt-1">Manage users, roles, and pending approvals</p>
+  </div>
+  <button
+    onClick={handleLogout}
+    className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 hover:bg-gray-700"
+  >
+    <LogOut className="h-4 w-4" />
+    <span className="hidden sm:inline">Logout</span>
+  </button>
+</div>
 
             {/* Pending Approvals Banner */}
             {pendingUsers.length > 0 && (
