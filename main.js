@@ -88,16 +88,15 @@ async function getUsersByRole(role) {
 }
 
 function canViewBulletin(userId, category) {
-  // Implement synchronously by checking user roles (will need to be async in practice)
-  return true; // Simplified for now
+  return true;
 }
 
 function canPostBulletin(userId, category) {
-  return true; // Simplified for now
+  return true;
 }
 
 function canDeleteBulletin(userId, category) {
-  return true; // Simplified for now
+  return true;
 }
 
 // Authentication
@@ -169,7 +168,6 @@ async function getPendingUsers() {
 
 // Public user registration
 async function registerUser(email, name, username, password) {
-  // Check if username or email already exists
   const existingUser = await pool.query(
     'SELECT id FROM users WHERE username = $1 OR email = $2',
     [username, email]
@@ -199,7 +197,6 @@ async function approveUser(userId, assignedRole, requestingUserId) {
     return { error: 'Unauthorized - Chief or Admin access required' };
   }
   
-  // Validate role
   if (!ROLE_HIERARCHY.hasOwnProperty(assignedRole)) {
     return { error: 'Invalid role' };
   }
@@ -215,7 +212,6 @@ async function approveUser(userId, assignedRole, requestingUserId) {
       [assignedRole, isAdmin, userId]
     );
     
-    // Add role to user_roles table
     await client.query(
       'INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [userId, assignedRole]
@@ -242,7 +238,17 @@ async function rejectUser(userId, requestingUserId) {
   return { changes: 1 };
 }
 
-// Get bulletins by category with role-based filtering
+// Bulletins
+async function getBulletins() {
+  const result = await pool.query(`
+    SELECT b.*, u.name as author_name 
+    FROM bulletins b 
+    JOIN users u ON b.user_id = u.id 
+    ORDER BY b.created_at DESC
+  `);
+  return result.rows;
+}
+
 async function getBulletinsByCategory(category, userId = null) {
   const result = await pool.query(`
     SELECT b.*, u.name as author_name, b.user_id as author_id
@@ -255,7 +261,6 @@ async function getBulletinsByCategory(category, userId = null) {
   return result.rows;
 }
 
-// Add bulletin with role-based permissions
 async function addBulletin(title, body, category, userId) {
   const user = await getUserById(userId);
   if (!user) {
@@ -270,14 +275,12 @@ async function addBulletin(title, body, category, userId) {
   return { lastInsertRowid: result.rows[0].id };
 }
 
-// Delete bulletin with role-based permissions
 async function deleteBulletin(bulletinId, userId) {
   const user = await getUserById(userId);
   if (!user) {
     return { error: 'User not found' };
   }
   
-  // Get the bulletin to check its category and author
   const bulletinResult = await pool.query('SELECT category, user_id FROM bulletins WHERE id = $1', [bulletinId]);
   if (bulletinResult.rows.length === 0) {
     return { error: 'Bulletin not found' };
@@ -337,7 +340,6 @@ async function sendMessage(senderId, recipients, subject, body, threadId = null,
     
     const recipientArray = Array.isArray(recipients) ? recipients : [recipients];
     
-    // Create ONE message for the group
     const result = await client.query(
       'INSERT INTO messages (sender_id, recipient_id, subject, body, thread_id, parent_message_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       [senderId, recipientArray[0], subject, body, threadId, parentMessageId]
@@ -345,14 +347,12 @@ async function sendMessage(senderId, recipients, subject, body, threadId = null,
     
     const messageId = result.rows[0].id;
     
-    // If no threadId provided, use the message ID as thread ID
     let actualThreadId = threadId;
     if (!threadId) {
       actualThreadId = messageId;
       await client.query('UPDATE messages SET thread_id = $1 WHERE id = $2', [actualThreadId, messageId]);
     }
     
-    // Add all participants to the thread
     await client.query(
       'INSERT INTO thread_participants (thread_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [actualThreadId, senderId]
@@ -383,9 +383,7 @@ async function getSent(userId) {
   return result.rows;
 }
 
-// Delete message
 async function deleteMessage(messageId, userId) {
-  // Get the message to find its thread
   const messageResult = await pool.query('SELECT thread_id FROM messages WHERE id = $1', [messageId]);
   
   if (messageResult.rows.length === 0) {
@@ -394,7 +392,6 @@ async function deleteMessage(messageId, userId) {
   
   const threadId = messageResult.rows[0].thread_id;
   
-  // Check if user is a participant in this thread
   const participantResult = await pool.query(
     'SELECT 1 FROM thread_participants WHERE thread_id = $1 AND user_id = $2',
     [threadId, userId]
@@ -404,7 +401,6 @@ async function deleteMessage(messageId, userId) {
     return { changes: 0 };
   }
   
-  // Remove user from thread participants
   const result = await pool.query(
     'DELETE FROM thread_participants WHERE thread_id = $1 AND user_id = $2',
     [threadId, userId]
@@ -474,7 +470,6 @@ async function createUser(email, name, username, password, roles, requestingUser
     
     const userId = result.rows[0].id;
     
-    // Add all roles
     for (const role of rolesArray) {
       await client.query(
         'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
@@ -498,7 +493,6 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
     return { error: 'Unauthorized - Admin access required' };
   }
   
-  // Prevent non-super_users from editing super_user accounts
   const targetUser = await getUserById(userId);
   if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
     if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
@@ -532,7 +526,6 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
       [email, name, username, isAdmin, primaryRole, userId]
     );
     
-    // Update roles
     await setUserRoles(userId, rolesArray);
     
     await client.query('COMMIT');
@@ -570,7 +563,6 @@ async function resetPassword(userId, newPassword, requestingUserId) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
-  // Prevent non-super_users from resetting super_user passwords
   const targetUser = await getUserById(userId);
   if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
     if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
