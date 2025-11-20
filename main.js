@@ -193,10 +193,18 @@ async function registerUser(email, name, username, password) {
 }
 
 // Admin approves user
-async function approveUser(userId, assignedRole, requestingUserId) {
+aasync function updateUser(userId, email, name, username, roles, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || !isChiefOrHigher(requestingUser.role)) {
-    return { error: 'Unauthorized - Chief or Admin access required' };
+  if (!requestingUser || requestingUser.role !== 'admin') {
+    return { error: 'Unauthorized - Admin access required' };
+  }
+  
+  // Prevent non-super_users from editing super_user accounts
+  const targetUser = await getUserById(userId);
+  if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
+    if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
+      return { error: 'Only Super Users can edit Super User accounts' };
+    }
   }
   
   // Validate role
@@ -567,10 +575,12 @@ async function deleteUser(userId, requestingUserId) {
   return { changes: result.rowCount };
 }
 
-async function resetPassword(userId, newPassword, requestingUserId) {
-  const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
-    return { error: 'Unauthorized - Admin access required' };
+// Prevent non-super_users from resetting super_user passwords
+  const targetUser = await getUserById(userId);
+  if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
+    if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
+      return { error: 'Only Super Users can reset Super User passwords' };
+    }
   }
   
   const hashedPassword = hashPassword(newPassword);
