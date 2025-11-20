@@ -189,15 +189,16 @@ useEffect(() => {
   });
 }, [selectedThread, threadMessages, user?.id]); // REMOVED readMessages from dependencies
 
-  const fetchAllBulletins = async () => {
-    try {
-      const res = await fetch(`/api/bulletins/all?userId=${user.id}`);
-      const data = await res.json();
-      setAllBulletins(data);
-    } catch (err) {
-      console.error('Error fetching all bulletins:', err);
-    }
-  };
+const fetchAllBulletins = async () => {
+  try {
+    const res = await fetch(`/api/bulletins/all?userId=${user.id}`);
+    const data = await res.json();
+    setAllBulletins(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error('Error fetching all bulletins:', err);
+    setAllBulletins([]);
+  }
+};
   
   
   // Add this useEffect to poll for new messages every 10 seconds
@@ -407,13 +408,16 @@ const fetchBulletins = async (category = 'west-wing') => {
     
     const data = await res.json();
     console.log('Data received:', data);
-    console.log('Data length:', data.length);
     
-    setBulletins(data);
+    const safeData = Array.isArray(data) ? data : [];
+    console.log('Data length:', safeData.length);
     
-    data.forEach(bulletin => fetchBulletinAttachments(bulletin.id));
+    setBulletins(safeData);
+    
+    safeData.forEach(bulletin => fetchBulletinAttachments(bulletin.id));
   } catch (err) {
     console.error('Error fetching bulletins:', err);
+    setBulletins([]);
   }
 };
 
@@ -460,11 +464,13 @@ const fetchInbox = async () => {
   try {
     const res = await fetch(`/api/messages/inbox/${user.id}`);
     const data = await res.json();
-    setInbox(data);
+    const safeData = Array.isArray(data) ? data : [];
+    setInbox(safeData);
     
-    data.forEach(msg => fetchMessageAttachments(msg.id));
+    safeData.forEach(msg => fetchMessageAttachments(msg.id));
   } catch (err) {
     console.error('Error fetching inbox:', err);
+    setInbox([]);
   }
 };
 
@@ -511,15 +517,17 @@ const toggleThread = (threadId) => {
     }
   };
 
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch('/api/users');
-      const data = await res.json();
-      setUsers(data.filter(u => u.status === 'active'));
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    }
-  };
+const fetchUsers = async () => {
+  try {
+    const res = await fetch('/api/users');
+    const data = await res.json();
+    const safeData = Array.isArray(data) ? data : [];
+    setUsers(safeData.filter(u => u.status === 'active'));
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    setUsers([]);
+  }
+};
   
 const handlePostBulletin = async () => {
   if (!bulletinTitle.trim() || !bulletinBody.trim()) return;
