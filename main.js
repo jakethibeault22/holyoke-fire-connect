@@ -193,7 +193,7 @@ async function registerUser(email, name, username, password) {
 }
 
 // Admin approves user
-aasync function updateUser(userId, email, name, username, roles, requestingUserId) {
+async function updateUser(userId, email, name, username, roles, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
   if (!requestingUser || requestingUser.role !== 'admin') {
     return { error: 'Unauthorized - Admin access required' };
