@@ -1976,7 +1976,7 @@ if (!user) {
             )}
           </div>
         )}
-        {view === "users" && user.role === 'admin' && (
+        {view === "users" && (user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) && (
           <div className="max-w-7xl mx-auto">
             <div className="mb-6 flex justify-between items-start">
   <div>
@@ -2298,7 +2298,7 @@ if (!user) {
     </button>
 
     {/* Admin Panel or Logout */}
-    {user.role === 'admin' ? (
+    {(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) ? (
       <button
         onClick={() => setView("users")}
         className={`flex flex-col items-center justify-center gap-1 ${
