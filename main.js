@@ -448,7 +448,7 @@ async function createUser(email, name, username, password, roles, requestingUser
   
   const rolesArray = Array.isArray(roles) ? roles : [roles];
   
-  if (rolesArray.includes('super_user') && requestingUser.role !== 'super_user') {
+  if (rolesArray.includes('super_user') && !requestingUser.roles?.includes('super_user') && requestingUser.role !== 'super_user') {
     return { error: 'Only Super Users can assign Super User role' };
   }
   
