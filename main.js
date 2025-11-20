@@ -575,7 +575,13 @@ async function deleteUser(userId, requestingUserId) {
   return { changes: result.rowCount };
 }
 
-// Prevent non-super_users from resetting super_user passwords
+async function resetPassword(userId, newPassword, requestingUserId) {
+  const requestingUser = await getUserById(requestingUserId);
+  if (!requestingUser || requestingUser.role !== 'admin') {
+    return { error: 'Unauthorized - Admin access required' };
+  }
+  
+  // Prevent non-super_users from resetting super_user passwords
   const targetUser = await getUserById(userId);
   if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
     if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
