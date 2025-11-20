@@ -154,15 +154,17 @@ async function initDatabase() {
   }
 }
 
-// Run initialization
-initDatabase()
-  .then(() => {
-    console.log('✓ Database ready');
-    process.exit(0);
-  })
-  .catch(err => {
-    console.error('✗ Database initialization failed:', err);
-    process.exit(1);
-  });
+// Only run if called directly (not required as module)
+if (require.main === module) {
+  initDatabase()
+    .then(() => {
+      console.log('✓ Database ready');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('✗ Database initialization failed:', err);
+      process.exit(1);
+    });
+}
 
 module.exports = { initDatabase };
