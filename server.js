@@ -31,6 +31,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Create super user if it doesn't exist
+  try {
+    require('./scripts/create-super-user');
+  } catch (err) {
+    console.error('Super user creation error:', err);
+  }
 });
