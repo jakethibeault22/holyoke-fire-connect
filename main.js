@@ -104,7 +104,7 @@ function canDeleteBulletin(userId, category) {
 async function loginUser(username, password) {
   const hashedPassword = hashPassword(password);
   const result = await pool.query(
-    'SELECT id, email, name, username, is_admin, role, status FROM users WHERE username = $1 AND password_hash = $2',
+    'SELECT id, email, name, username, is_admin, role, status FROM users WHERE LOWER(username) = LOWER($1) AND password_hash = $2',
     [username, hashedPassword]
   );
   
