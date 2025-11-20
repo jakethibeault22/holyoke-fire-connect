@@ -29,6 +29,12 @@ function getRoleLevel(role) {
   return ROLE_HIERARCHY[role] || 0;
 }
 
+function isAdminOrHigher(user) {
+  if (!user) return false;
+  const userRoles = user.roles || [user.role];
+  return userRoles.includes('admin') || userRoles.includes('super_user');
+}
+
 function isChiefOrHigher(role) {
   return getRoleLevel(role) >= getRoleLevel('chief');
 }
@@ -436,7 +442,7 @@ async function deleteAttachment(attachmentId) {
 // User Management (Admin only)
 async function createUser(email, name, username, password, roles, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
+  if (!isAdminOrHigher(requestingUser)) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
@@ -489,7 +495,7 @@ async function createUser(email, name, username, password, roles, requestingUser
 
 async function updateUser(userId, email, name, username, roles, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
+  if (!isAdminOrHigher(requestingUser)) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
@@ -540,7 +546,7 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
 
 async function deleteUser(userId, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
+  if (!isAdminOrHigher(requestingUser)) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
@@ -559,7 +565,7 @@ async function deleteUser(userId, requestingUserId) {
 
 async function resetPassword(userId, newPassword, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || (requestingUser.role !== 'admin' && requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('admin') && !requestingUser.roles?.includes('super_user'))) {
+  if (!isAdminOrHigher(requestingUser)) {
     return { error: 'Unauthorized - Admin access required' };
   }
   
