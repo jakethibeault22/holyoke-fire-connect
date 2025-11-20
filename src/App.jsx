@@ -1158,7 +1158,7 @@ if (!user) {
   <span className="text-lg">New Message</span>
 </button>
 
-{user.role === 'admin' && (
+{(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) && (
   <div className="mt-4">
     <button
       onClick={() => setView("users")}
