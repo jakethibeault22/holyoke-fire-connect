@@ -1983,13 +1983,13 @@ if (!user) {
     <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
     <p className="text-gray-600 mt-1">Manage users, roles, and pending approvals</p>
   </div>
-  <button
-    onClick={handleLogout}
-    className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 hover:bg-gray-700"
-  >
-    <LogOut className="h-4 w-4" />
-    <span className="hidden sm:inline">Logout</span>
-  </button>
+<button
+  onClick={handleLogout}
+  className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 hover:bg-gray-700"
+>
+  <LogOut className="h-4 w-4" />
+  <span className="hidden sm:inline">Log Out</span>
+</button>
 </div>
 
             {/* Pending Approvals Banner */}
