@@ -2563,7 +2563,7 @@ className="w-full p-2 border rounded"
           </button>
 
           {/* Admin Panel or Logout */}
-          {user.role === 'admin' ? (
+{(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) ? (
             <button
               onClick={() => setView("users")}
               className={`flex flex-col items-center justify-center gap-1 ${
