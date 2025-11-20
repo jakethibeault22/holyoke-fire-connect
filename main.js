@@ -193,18 +193,10 @@ async function registerUser(email, name, username, password) {
 }
 
 // Admin approves user
-async function updateUser(userId, email, name, username, roles, requestingUserId) {
+async function approveUser(userId, assignedRole, requestingUserId) {
   const requestingUser = await getUserById(requestingUserId);
-  if (!requestingUser || requestingUser.role !== 'admin') {
-    return { error: 'Unauthorized - Admin access required' };
-  }
-  
-  // Prevent non-super_users from editing super_user accounts
-  const targetUser = await getUserById(userId);
-  if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
-    if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
-      return { error: 'Only Super Users can edit Super User accounts' };
-    }
+  if (!requestingUser || !isChiefOrHigher(requestingUser.role)) {
+    return { error: 'Unauthorized - Chief or Admin access required' };
   }
   
   // Validate role
@@ -248,17 +240,6 @@ async function rejectUser(userId, requestingUserId) {
   
   await pool.query("UPDATE users SET status = 'rejected' WHERE id = $1", [userId]);
   return { changes: 1 };
-}
-
-// Bulletins
-async function getBulletins() {
-  const result = await pool.query(`
-    SELECT b.*, u.name as author_name 
-    FROM bulletins b 
-    JOIN users u ON b.user_id = u.id 
-    ORDER BY b.created_at DESC
-  `);
-  return result.rows;
 }
 
 // Get bulletins by category with role-based filtering
@@ -515,6 +496,14 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
   const requestingUser = await getUserById(requestingUserId);
   if (!requestingUser || requestingUser.role !== 'admin') {
     return { error: 'Unauthorized - Admin access required' };
+  }
+  
+  // Prevent non-super_users from editing super_user accounts
+  const targetUser = await getUserById(userId);
+  if (targetUser && (targetUser.role === 'super_user' || targetUser.roles?.includes('super_user'))) {
+    if (requestingUser.role !== 'super_user' && !requestingUser.roles?.includes('super_user')) {
+      return { error: 'Only Super Users can edit Super User accounts' };
+    }
   }
   
   const rolesArray = Array.isArray(roles) ? roles : [roles];
