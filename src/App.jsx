@@ -2429,7 +2429,7 @@ if (!user) {
                   }
 
                   try {
-                    const res = await fetch('/api/admin/users', {
+                    const res = await fetch(`/api/admin/users/${editingUser.id}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
