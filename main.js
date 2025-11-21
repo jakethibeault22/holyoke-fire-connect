@@ -51,10 +51,12 @@ async function addUserRole(userId, role) {
 }
 
 // Set multiple roles for a user (replaces all existing roles)
-async function setUserRoles(userId, roles) {
-  const client = await pool.connect();
+async function setUserRoles(userId, roles, existingClient = null) {
+  const client = existingClient || await pool.connect();
+  const shouldRelease = !existingClient;
+  
   try {
-    await client.query('BEGIN');
+    if (!existingClient) await client.query('BEGIN');
     
     // Delete existing roles
     await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
@@ -72,12 +74,12 @@ async function setUserRoles(userId, roles) {
       await client.query('UPDATE users SET role = $1 WHERE id = $2', [primaryRole, userId]);
     }
     
-    await client.query('COMMIT');
+    if (!existingClient) await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (!existingClient) await client.query('ROLLBACK');
     throw err;
   } finally {
-    client.release();
+    if (shouldRelease) client.release();
   }
 }
 
@@ -532,7 +534,7 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
       [email, name, username, isAdmin, primaryRole, userId]
     );
     
-    await setUserRoles(userId, rolesArray);
+    await setUserRoles(userId, rolesArray, client);
     
     await client.query('COMMIT');
     return { changes: 1 };
