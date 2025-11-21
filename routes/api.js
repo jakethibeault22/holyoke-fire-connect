@@ -36,6 +36,29 @@ const {
   getUsersByRole
 } = require('../main');
 
+// Public routes that don't require authentication
+const publicRoutes = ['/login', '/register'];
+
+// Middleware to check authentication for non-public routes
+const requireAuth = (req, res, next) => {
+  // Skip auth for public routes
+  if (publicRoutes.some(route => req.path === route)) {
+    return next();
+  }
+  
+  // Check for userId in query or body
+  const userId = req.query.userId || req.body?.userId || req.body?.requestingUserId || req.body?.senderId;
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  next();
+};
+
+// Apply auth middleware to all routes
+router.use(requireAuth);
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
