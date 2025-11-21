@@ -278,11 +278,11 @@ router.get('/bulletins/permissions/:category', async (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
   
-  res.json({
-    canView: canViewBulletin(parseInt(userId), category),
-    canPost: canPostBulletin(parseInt(userId), category),
-    canDelete: canDeleteBulletin(parseInt(userId), category)
-  });
+res.json({
+  canView: await canViewBulletin(parseInt(userId), category),
+  canPost: await canPostBulletin(parseInt(userId), category),
+  canDelete: await canDeleteBulletin(parseInt(userId), category)
+});
 });
 
 router.delete('/bulletins/:id', async (req, res) => {

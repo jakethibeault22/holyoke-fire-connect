@@ -95,17 +95,78 @@ async function getUsersByRole(role) {
   return result.rows;
 }
 
-function canViewBulletin(userId, category) {
-  return true;
+async function canViewBulletin(userId, category) {
+  const user = await getUserById(userId);
+  if (!user) return false;
+  
+  const userRoles = user.roles || [user.role];
+  
+  // Admin and Super User can view everything
+  if (userRoles.includes('admin') || userRoles.includes('super_user')) {
+    return true;
+  }
+  
+  // Check based on category
+  switch(category) {
+    case 'west-wing':
+    case 'training':
+    case 'fire-prevention':
+    case 'repair-division':
+      return true; // Everyone can view these
+    case 'alarm-division':
+      return userRoles.some(role => 
+        role === 'alarm_division' || 
+        role === 'alarm_supervisor' || 
+        getRoleLevel(role) >= getRoleLevel('chief')
+      );
+    case 'commissioners':
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
+    default:
+      return true;
+  }
 }
 
-function canPostBulletin(userId, category) {
-  return true;
+async function canPostBulletin(userId, category) {
+  const user = await getUserById(userId);
+  if (!user) return false;
+  
+  const userRoles = user.roles || [user.role];
+  
+  // Admin and Super User can post everywhere
+  if (userRoles.includes('admin') || userRoles.includes('super_user')) {
+    return true;
+  }
+  
+  switch(category) {
+    case 'west-wing':
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('deputy'));
+    case 'training':
+      return userRoles.some(role => role === 'training' || getRoleLevel(role) >= getRoleLevel('chief'));
+    case 'fire-prevention':
+      return userRoles.some(role => role === 'prevention_captain' || getRoleLevel(role) >= getRoleLevel('chief'));
+    case 'repair-division':
+      return userRoles.some(role => role === 'repair_division_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
+    case 'alarm-division':
+      return userRoles.some(role => role === 'alarm_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
+    case 'commissioners':
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
+    default:
+      return false;
+  }
 }
 
-function canDeleteBulletin(userId, category) {
-  return true;
-}
+async function canDeleteBulletin(userId, category) {
+  const user = await getUserById(userId);
+  if (!user) return false;
+  
+  const userRoles = user.roles || [user.role];
+  
+  // Admin and Super User can delete everything
+  if (userRoles.includes('admin') || userRoles.includes('super_user')) {
+    return true;
+  }
+  
+  switch(category)
 
 // Authentication
 async function loginUser(username, password) {
