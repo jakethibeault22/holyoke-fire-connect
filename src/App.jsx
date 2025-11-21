@@ -797,7 +797,6 @@ const removeMessageFile = (index) => {
       if (data.success) {
         setEditingUser(null);
         fetchUsers();
-        alert('User updated successfully');
       } else if (data.error) {
         alert(data.error);
       }
