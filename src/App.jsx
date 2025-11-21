@@ -2181,9 +2181,10 @@ if (!user) {
                         <div className="flex gap-3 pt-6 border-t">
                           <button
                             onClick={async () => {
-                              if (!editingUser) return;
+  alert('Save clicked!');
+  if (!editingUser) return;
 
-                              try {
+  try {
                                 const res = await fetch(`/api/admin/users/${editingUser.id}`, {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
