@@ -166,7 +166,19 @@ async function canDeleteBulletin(userId, category) {
     return true;
   }
   
-  switch(category)
+  switch(category) {
+    case 'west-wing':
+    case 'training':
+    case 'fire-prevention':
+    case 'repair-division':
+    case 'alarm-division':
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('chief'));
+    case 'commissioners':
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
+    default:
+      return false;
+  }
+}
 
 // Authentication
 async function loginUser(username, password) {
