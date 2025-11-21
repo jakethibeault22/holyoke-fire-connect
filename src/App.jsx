@@ -2181,7 +2181,6 @@ if (!user) {
                         <div className="flex gap-3 pt-6 border-t">
                           <button
                             onClick={async () => {
-  alert('Save clicked!');
   if (!editingUser) return;
 
   try {
