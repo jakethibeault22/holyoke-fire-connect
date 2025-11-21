@@ -19,15 +19,6 @@ if (!fs.existsSync(dataDir)) {
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
-// Initialize database tables (one-time)
-const { initDatabase } = require('./scripts/init-db');
-initDatabase().then(() => {
-  console.log('Database tables ready');
-}).catch(err => {
-  console.error('Database init error:', err);
-});
-
 // API routes
 const apiRouter = require('./routes/api');
 app.use('/api', apiRouter);
