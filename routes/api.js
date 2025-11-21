@@ -39,6 +39,9 @@ const {
 // Public routes that don't require authentication
 const publicRoutes = ['/login', '/register'];
 
+// Public routes that don't require authentication
+const publicRoutes = ['/login', '/register'];
+
 // Middleware to check authentication for non-public routes
 const requireAuth = (req, res, next) => {
   // Skip auth for public routes
@@ -46,10 +49,18 @@ const requireAuth = (req, res, next) => {
     return next();
   }
   
-  // Check for userId in query or body
-  const userId = req.query.userId || req.body?.userId || req.body?.requestingUserId || req.body?.senderId;
+  // Check for userId in query, body, or URL params
+  const userId = req.query.userId || 
+                 req.body?.userId || 
+                 req.body?.requestingUserId || 
+                 req.body?.senderId ||
+                 req.params?.userId;
   
-  if (!userId) {
+  // For routes that have userId in the path like /messages/inbox/:userId
+  const pathMatch = req.path.match(/\/(\d+)/);
+  const pathUserId = pathMatch ? pathMatch[1] : null;
+  
+  if (!userId && !pathUserId) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   
@@ -57,7 +68,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // Apply auth middleware to all routes
-router.use(requireAuth);
+router.use(requireAuth);;
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
