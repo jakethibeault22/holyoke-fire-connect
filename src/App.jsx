@@ -112,6 +112,7 @@ export default function App() {
   const messagesEndRef = useRef(null);
   const [visibleCategories, setVisibleCategories] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   useEffect(() => {
     if (user) {
@@ -2181,7 +2182,8 @@ if (!user) {
                         <div className="flex gap-3 pt-6 border-t">
                           <button
                             onClick={async () => {
-  if (!editingUser) return;
+  if (!editingUser || isSaving) return;
+  setIsSaving(true);
 
   try {
                                 const res = await fetch(`/api/admin/users/${editingUser.id}`, {
@@ -2205,13 +2207,16 @@ if (!user) {
                                   alert(data.error);
                                 }
                               } catch (err) {
-                                console.error('Error updating user:', err);
-                                alert('Failed to update user');
-                              }
-                            }}
-                            className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                          >
-                            Save Changes
+                console.error('Error updating user:', err);
+                alert('Failed to update user');
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+                            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition ${isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+disabled={isSaving}
+>
+  {isSaving ? 'Saving...' : 'Save Changes'}
                           </button>
                           <button
                             onClick={() => setResetPasswordUserId(editingUser.id)}
