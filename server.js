@@ -78,4 +78,20 @@ app.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     console.error('✗ Super admin check error:', err.message);
   }
+  
+  // Run automatic cleanup of old data (once per day)
+  try {
+    const { runDailyCleanup } = require('./scripts/cleanup');
+    
+    // Run cleanup on startup
+    await runDailyCleanup();
+    
+    // Set up daily cleanup check (every 6 hours, but only runs once per day)
+    setInterval(async () => {
+      await runDailyCleanup();
+    }, 6 * 60 * 60 * 1000); // Check every 6 hours
+    
+  } catch (err) {
+    console.error('✗ Cleanup initialization error:', err.message);
+  }
 });
