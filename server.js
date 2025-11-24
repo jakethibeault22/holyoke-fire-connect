@@ -19,6 +19,7 @@ if (!fs.existsSync(dataDir)) {
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
 // API routes
 const apiRouter = require('./routes/api');
 app.use('/api', apiRouter);
@@ -34,7 +35,7 @@ app.get('*', (req, res) => {
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
   
-  // Create super user if it doesn't exist
+  // Ensure super admin user exists (safe - only creates if missing)
   const { pool } = require('./config/db');
   const crypto = require('crypto');
   
@@ -43,9 +44,13 @@ app.listen(PORT, '0.0.0.0', async () => {
   }
   
   try {
-    const check = await pool.query("SELECT * FROM users WHERE username = 'superadmin'");
+    // Check if ANY admin user exists
+    const adminCheck = await pool.query(
+      "SELECT * FROM users WHERE role = 'admin' OR role = 'super_user'"
+    );
     
-    if (check.rows.length === 0) {
+    if (adminCheck.rows.length === 0) {
+      console.log('No admin users found - creating super admin...');
       const password = 'SuperAdmin123!';
       const hashedPassword = hashPassword(password);
       
@@ -61,9 +66,16 @@ app.listen(PORT, '0.0.0.0', async () => {
         [result.rows[0].id, 'super_user']
       );
       
-      console.log('✓ Super user created! Username: superadmin, Password: SuperAdmin123!');
+      console.log('✓ Super admin created! Username: superadmin, Password: SuperAdmin123!');
+    } else {
+      console.log(`✓ Found ${adminCheck.rows.length} admin user(s)`);
     }
+    
+    // Log total user count for debugging
+    const userCount = await pool.query('SELECT COUNT(*) FROM users');
+    console.log(`✓ Total users in database: ${userCount.rows[0].count}`);
+    
   } catch (err) {
-    console.error('Super user creation error:', err);
+    console.error('✗ Super admin check error:', err.message);
   }
 });
