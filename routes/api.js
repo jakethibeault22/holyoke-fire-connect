@@ -39,9 +39,6 @@ const {
 // Public routes that don't require authentication
 const publicRoutes = ['/login', '/register'];
 
-// Public routes that don't require authentication
-const publicRoutes = ['/login', '/register'];
-
 // Middleware to check authentication for non-public routes
 const requireAuth = (req, res, next) => {
   // Skip auth for public routes
@@ -68,7 +65,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // Apply auth middleware to all routes
-router.use(requireAuth);;
+router.use(requireAuth);
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -158,7 +155,7 @@ router.get('/admin/pending-users', async (req, res) => {
   
   const userRoles = requestingUser.roles || [requestingUser.role];
   const isChiefOrAdmin = userRoles.some(role => 
-    role === 'chief' || role === 'admin'
+    role === 'chief' || role === 'admin' || role === 'super_user'
   );
   
   if (!isChiefOrAdmin) {
@@ -223,7 +220,16 @@ router.get('/bulletins/all', async (req, res) => {
       ORDER BY created_at DESC
     `);
     
-    res.json(result.rows);
+    // Filter bulletins based on user permissions
+    const filteredBulletins = [];
+    for (const bulletin of result.rows) {
+      const canView = await canViewBulletin(parseInt(userId), bulletin.category);
+      if (canView) {
+        filteredBulletins.push(bulletin);
+      }
+    }
+    
+    res.json(filteredBulletins);
   } catch (err) {
     console.error('Error fetching all bulletins:', err);
     res.status(500).json({ error: 'Failed to fetch bulletins' });
@@ -289,11 +295,11 @@ router.get('/bulletins/permissions/:category', async (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
   
-res.json({
-  canView: await canViewBulletin(parseInt(userId), category),
-  canPost: await canPostBulletin(parseInt(userId), category),
-  canDelete: await canDeleteBulletin(parseInt(userId), category)
-});
+  res.json({
+    canView: await canViewBulletin(parseInt(userId), category),
+    canPost: await canPostBulletin(parseInt(userId), category),
+    canDelete: await canDeleteBulletin(parseInt(userId), category)
+  });
 });
 
 router.delete('/bulletins/:id', async (req, res) => {
@@ -352,8 +358,26 @@ router.get('/bulletins/can-view/:category', async (req, res) => {
     return res.status(400).json({ error: 'userId required' });
   }
   
-  const canView = canViewBulletin(parseInt(userId), category);
+  const canView = await canViewBulletin(parseInt(userId), category);
   res.json({ canView });
+});
+
+// Mark bulletin as read
+router.post('/bulletins/mark-read', async (req, res) => {
+  const { userId, bulletinId } = req.body;
+  
+  try {
+    await pool.query(`
+      INSERT INTO bulletin_reads (user_id, bulletin_id, read_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT DO NOTHING
+    `, [userId, bulletinId]);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking bulletin as read:', err);
+    res.status(500).json({ error: 'Failed to mark bulletin as read' });
+  }
 });
 
 // --- Messages ---
@@ -502,6 +526,24 @@ router.delete('/attachments/:id', async (req, res) => {
   res.json({ success: result.changes > 0 });
 });
 
+// Mark message as read
+router.post('/messages/mark-read', async (req, res) => {
+  const { userId, messageId } = req.body;
+  
+  try {
+    await pool.query(`
+      INSERT INTO message_reads (user_id, message_id, read_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT DO NOTHING
+    `, [userId, messageId]);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking message as read:', err);
+    res.status(500).json({ error: 'Failed to mark message as read' });
+  }
+});
+
 // --- READ STATUS ENDPOINTS ---
 
 // Get read status for a user
@@ -526,42 +568,6 @@ router.get('/read-status/:userId', async (req, res) => {
   } catch (err) {
     console.error('Error fetching read status:', err);
     res.status(500).json({ error: 'Failed to fetch read status' });
-  }
-});
-
-// Mark bulletin as read
-router.post('/bulletins/mark-read', async (req, res) => {
-  const { userId, bulletinId } = req.body;
-  
-  try {
-    await pool.query(`
-      INSERT INTO bulletin_reads (user_id, bulletin_id, read_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
-      ON CONFLICT DO NOTHING
-    `, [userId, bulletinId]);
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking bulletin as read:', err);
-    res.status(500).json({ error: 'Failed to mark bulletin as read' });
-  }
-});
-
-// Mark message as read
-router.post('/messages/mark-read', async (req, res) => {
-  const { userId, messageId } = req.body;
-  
-  try {
-    await pool.query(`
-      INSERT INTO message_reads (user_id, message_id, read_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
-      ON CONFLICT DO NOTHING
-    `, [userId, messageId]);
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking message as read:', err);
-    res.status(500).json({ error: 'Failed to mark message as read' });
   }
 });
 
@@ -609,7 +615,7 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
   }
 });
 
-// ADMIN: Export database as SQL backup
+// ADMIN: Export database info
 router.get('/admin/export-sql', async (req, res) => {
   const { userId } = req.query;
   
@@ -623,9 +629,7 @@ router.get('/admin/export-sql', async (req, res) => {
   }
   
   try {
-    // This would need to be implemented differently for PostgreSQL
-    // For now, return a message
-    res.json({ message: 'PostgreSQL backup should be done through Supabase dashboard' });
+    res.json({ message: 'PostgreSQL backup should be done through Render dashboard or Supabase dashboard' });
   } catch (err) {
     console.error('Error creating backup:', err);
     res.status(500).json({ error: 'Backup failed', details: err.message });
