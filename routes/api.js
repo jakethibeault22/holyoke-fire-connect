@@ -56,6 +56,7 @@ const requireAuth = (req, res, next) => {
   
   // Check for userId in query, body, or URL params
   const userId = req.query.userId || 
+                 req.query.requestingUserId ||  // <-- ADD THIS LINE
                  req.body?.userId || 
                  req.body?.requestingUserId || 
                  req.body?.senderId ||
