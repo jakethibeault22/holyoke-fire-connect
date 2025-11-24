@@ -39,10 +39,18 @@ const {
 // Public routes that don't require authentication
 const publicRoutes = ['/login', '/register'];
 
+// Routes that should skip auth (authenticated in other ways)
+const skipAuthRoutes = ['/users', '/users/by-role'];
+
 // Middleware to check authentication for non-public routes
 const requireAuth = (req, res, next) => {
   // Skip auth for public routes
   if (publicRoutes.some(route => req.path === route)) {
+    return next();
+  }
+  
+  // Skip auth for certain routes (they handle their own auth)
+  if (skipAuthRoutes.some(route => req.path.startsWith(route))) {
     return next();
   }
   
