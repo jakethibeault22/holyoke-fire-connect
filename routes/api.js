@@ -592,7 +592,7 @@ router.post('/admin/users', async (req, res) => {
   if (result.error) {
     res.status(403).json(result);
   } else {
-    res.json({ success: true, id: result.lastInsertRowid });
+    res.json({ success: true, id: result.id || result.lastInsertRowid });
   }
 });
 

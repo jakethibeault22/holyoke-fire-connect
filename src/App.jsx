@@ -2433,7 +2433,7 @@ disabled={isSaving}
                   }
 
                   try {
-                    const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+                    const res = await fetch('/api/admin/users', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
