@@ -561,9 +561,13 @@ async function createUser(email, name, username, password, roles, requestingUser
     
     await client.query('COMMIT');
     return { lastInsertRowid: userId };
-  } catch (err) {
+} catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    // Return error instead of throwing
+    if (err.code === '23505') {  // PostgreSQL unique constraint violation
+      return { error: 'Username or email already exists' };
+    }
+    return { error: 'Failed to create user: ' + err.message };
   } finally {
     client.release();
   }
@@ -610,11 +614,15 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
     
     await setUserRoles(userId, rolesArray, client);
     
-    await client.query('COMMIT');
-    return { changes: 1 };
+await client.query('COMMIT');
+    return { lastInsertRowid: userId, id: userId };
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    // Return error instead of throwing
+    if (err.code === '23505') {  // PostgreSQL unique constraint violation
+      return { error: 'Username or email already exists' };
+    }
+    return { error: 'Failed to create user: ' + err.message };
   } finally {
     client.release();
   }
