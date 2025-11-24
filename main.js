@@ -315,8 +315,9 @@ async function rejectUser(userId, requestingUserId) {
     return { error: 'Unauthorized - Chief or Admin access required' };
   }
   
-  await pool.query("UPDATE users SET status = 'rejected' WHERE id = $1", [userId]);
-  return { changes: 1 };
+  // Delete the user permanently instead of just marking as rejected
+  const result = await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  return { changes: result.rowCount };
 }
 
 // Bulletins
