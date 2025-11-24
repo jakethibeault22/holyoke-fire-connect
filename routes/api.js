@@ -54,9 +54,14 @@ const requireAuth = (req, res, next) => {
     return next();
   }
   
+  // Skip auth for POST routes with file uploads (they handle auth after multer processes FormData)
+  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path.startsWith('/admin/users'))) {
+    return next();
+  }
+  
   // Check for userId in query, body, or URL params
   const userId = req.query.userId || 
-                 req.query.requestingUserId ||  // <-- ADD THIS LINE
+                 req.query.requestingUserId ||
                  req.body?.userId || 
                  req.body?.requestingUserId || 
                  req.body?.senderId ||
