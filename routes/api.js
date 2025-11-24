@@ -662,7 +662,7 @@ router.get('/debug/users', async (req, res) => {
 
 
 // Temporary: Delete rejected users
-router.delete('/debug/cleanup-rejected', async (req, res) => {
+router.get('/debug/cleanup-rejected', async (req, res) => {
   try {
     const result = await pool.query("DELETE FROM users WHERE status = 'rejected'");
     res.json({ deleted: result.rowCount, message: 'Rejected users removed' });
