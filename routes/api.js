@@ -40,7 +40,7 @@ const {
 const publicRoutes = ['/login', '/register'];
 
 // Routes that should skip auth (authenticated in other ways)
-const skipAuthRoutes = ['/users', '/users/by-role', '/debug'];
+const skipAuthRoutes = ['/users', '/users/by-role'];
 
 // Middleware to check authentication for non-public routes
 const requireAuth = (req, res, next) => {
@@ -649,27 +649,5 @@ router.get('/admin/export-sql', async (req, res) => {
     res.status(500).json({ error: 'Backup failed', details: err.message });
   }
 });
-
-// Temporary debug endpoint - remove after testing
-router.get('/debug/users', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT id, username, name, status, role FROM users ORDER BY id DESC LIMIT 10');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// Temporary: Delete rejected users
-router.get('/debug/cleanup-rejected', async (req, res) => {
-  try {
-    const result = await pool.query("DELETE FROM users WHERE status = 'rejected'");
-    res.json({ deleted: result.rowCount, message: 'Rejected users removed' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 module.exports = router;
