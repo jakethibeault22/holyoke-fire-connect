@@ -98,7 +98,9 @@ app.listen(PORT, '0.0.0.0', async () => {
     }
   }
   
-  // Run automatic cleanup of old data (once per day)
+// Run automatic cleanup of old data (once per day)
+  // Disabled until database is initialized
+  /*
   try {
     const { runDailyCleanup } = require('./scripts/cleanup');
     
@@ -113,4 +115,5 @@ app.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     console.error('✗ Cleanup initialization error:', err.message);
   }
+  */
 });
