@@ -90,7 +90,12 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log(`✓ Total users in database: ${userCount.rows[0].count}`);
     
   } catch (err) {
-    console.error('✗ Super admin check error:', err.message);
+    // If tables don't exist yet, that's okay - they'll be created via init endpoint
+    if (err.message && err.message.includes('does not exist')) {
+      console.log('⚠ Database tables not initialized yet - use /api/admin/init-supabase to initialize');
+    } else {
+      console.error('✗ Super admin check error:', err.message);
+    }
   }
   
   // Run automatic cleanup of old data (once per day)
