@@ -37,7 +37,7 @@ const {
 } = require('../main');
 
 // Public routes that don't require authentication
-const publicRoutes = ['/login', '/register'];
+const publicRoutes = ['/login', '/register', '/admin/init-supabase'];
 
 // Routes that should skip auth (authenticated in other ways)
 const skipAuthRoutes = ['/users', '/users/by-role'];
