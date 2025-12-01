@@ -650,4 +650,22 @@ router.get('/admin/export-sql', async (req, res) => {
   }
 });
 
+// One-time: Initialize Supabase database
+router.post('/admin/init-supabase', async (req, res) => {
+  const { password } = req.body;
+  
+  // Security: require a secret password
+  if (password !== 'InitSupabase2024!') {
+    return res.status(403).json({ error: 'Invalid password' });
+  }
+  
+  try {
+    const { initDatabase } = require('../scripts/init-db');
+    await initDatabase();
+    res.json({ success: true, message: 'Database initialized successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
