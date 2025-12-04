@@ -2199,12 +2199,11 @@ if (!user) {
                                 const data = await res.json();
                                 
                                 if (data.success) {
-  fetchUsers();
-  alert('User updated successfully');
-  setEditingUser(null);
-                                } else if (data.error) {
-                                  alert(data.error);
-                                }
+  alert('Profile successfully updated');
+  window.location.reload();  // Refresh the page
+} else if (data.error) {
+  alert(data.error);
+}
                               } catch (err) {
                 console.error('Error updating user:', err);
                 alert('Failed to update user');
