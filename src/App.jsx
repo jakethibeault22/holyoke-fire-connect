@@ -792,9 +792,10 @@ const removeMessageFile = (index) => {
           requestingUserId: user.id
         })
       });
-      const data = await res.json();
-      
-      if (data.success) {
+const data = await res.json();
+console.log('handleUpdateUser API Response:', data);
+
+if (data.success) {
   alert('Profile successfully updated');
   window.location.reload();
       } else if (data.error) {
@@ -2196,8 +2197,9 @@ const res = await fetch(`/api/admin/users/${editingUser.id}`, {
                                     requestingUserId: user.id
                                   })
                                 });
-                                const data = await res.json();
-                                
+                               const data = await res.json();
+console.log('API Response:', data);
+
 if (data.success) {
   console.log('SUCCESS - About to show alert and refresh');
   alert('Profile successfully updated');
