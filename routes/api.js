@@ -599,10 +599,6 @@ router.post('/admin/users', async (req, res) => {
 router.put('/admin/users/:id', async (req, res) => {
   const userId = parseInt(req.params.id);
   const { email, name, username, roles, requestingUserId } = req.body;
-  console.log('Updating user:', userId, 'with roles:', roles);
-  const result = await updateUser(userId, email, name, username, roles, requestingUserId);
-  console.log('Update result:', result);
-  if (result.error) {
     console.log('Error in update:', result.error);
     res.status(403).json(result);
   } else {
