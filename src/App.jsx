@@ -2199,9 +2199,9 @@ if (!user) {
                                 const data = await res.json();
                                 
                                 if (data.success) {
-                                  setEditingUser(null);
-                                  fetchUsers();
-                                  alert('User updated successfully');
+  fetchUsers();
+  alert('User updated successfully');
+  setEditingUser(null);
                                 } else if (data.error) {
                                   alert(data.error);
                                 }
