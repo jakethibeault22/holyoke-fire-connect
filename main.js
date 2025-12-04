@@ -615,7 +615,7 @@ async function updateUser(userId, email, name, username, roles, requestingUserId
     await setUserRoles(userId, rolesArray, client);
     
 await client.query('COMMIT');
-    return { lastInsertRowid: userId, id: userId };
+    return { success: true, id: userId };
   } catch (err) {
     await client.query('ROLLBACK');
     // Return error instead of throwing
