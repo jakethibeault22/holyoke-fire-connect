@@ -795,8 +795,8 @@ const removeMessageFile = (index) => {
       const data = await res.json();
       
       if (data.success) {
-        setEditingUser(null);
-        fetchUsers();
+  alert('Profile successfully updated');
+  window.location.reload();
       } else if (data.error) {
         alert(data.error);
       }
@@ -2185,7 +2185,7 @@ if (!user) {
   setIsSaving(true);
 
   try {
-                                const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+const res = await fetch(`/api/admin/users/${editingUser.id}`, {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
