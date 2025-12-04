@@ -2198,8 +2198,10 @@ const res = await fetch(`/api/admin/users/${editingUser.id}`, {
                                 });
                                 const data = await res.json();
                                 
-                                if (data.success) {
+if (data.success) {
+  console.log('SUCCESS - About to show alert and refresh');
   alert('Profile successfully updated');
+  console.log('Alert closed - About to refresh');
   window.location.reload();  // Refresh the page
 } else if (data.error) {
   alert(data.error);
