@@ -1499,7 +1499,7 @@ if (!user) {
               <p className="text-gray-600 mt-1">View and respond to your conversations</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20 lg:mb-0" style={{ minHeight: '600px' }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-32 lg:mb-0 pb-8" style={{ minHeight: '600px' }}>
 {/* Left Column - Conversation List */}
 <div className="lg:col-span-1" style={{ minHeight: '500px', maxHeight: '70vh' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
@@ -1689,7 +1689,7 @@ if (!user) {
                       </div>
 
                       {/* Reply Area */}
-                      <div className="p-6 border-t bg-white mb-20 lg:mb-0">
+                      <div className="p-6 border-t bg-white mb-32 lg:mb-0">
                         <div className="space-y-3">
                           <textarea
                             value={quickReply}
