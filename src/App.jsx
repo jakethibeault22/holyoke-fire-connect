@@ -1494,14 +1494,14 @@ if (!user) {
 
 {view === "inbox" && (
           <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-3xl font-bold text-gray-800">Messages</h2>
-              <p className="text-gray-600 mt-1">View and respond to your conversations</p>
-            </div>
+            <div className="mb-4 lg:mb-6 hidden lg:block">
+  <h2 className="text-3xl font-bold text-gray-800">Messages</h2>
+  <p className="text-gray-600 mt-1">View and respond to your conversations</p>
+</div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-32 lg:mb-0 pb-8" style={{ minHeight: '600px' }}>
 {/* Left Column - Conversation List */}
-<div className="lg:col-span-1" style={{ minHeight: '500px', maxHeight: '70vh' }}>
+<div className="lg:col-span-1" style={{ minHeight: '500px', maxHeight: '80vh' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   <div className="p-4 border-b bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
@@ -1562,7 +1562,7 @@ if (!user) {
               </div>
 
 {/* Right Column - Conversation View */}
-<div className="lg:col-span-2" style={{ minHeight: '500px', maxHeight: '70vh' }}>
+<div className="lg:col-span-2" style={{ minHeight: '500px', maxHeight: '80vh' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   {selectedThread ? (
                     <>
