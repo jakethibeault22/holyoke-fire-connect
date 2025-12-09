@@ -1499,9 +1499,9 @@ if (!user) {
               <p className="text-gray-600 mt-1">View and respond to your conversations</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 2rem)' }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20 lg:mb-0" style={{ minHeight: '600px' }}>
 {/* Left Column - Conversation List */}
-<div className="lg:col-span-1 mb-24 lg:mb-0" style={{ height: 'calc(100vh - 4rem)' }}>
+<div className="lg:col-span-1" style={{ minHeight: '500px', maxHeight: '70vh' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   <div className="p-4 border-b bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
@@ -1562,7 +1562,7 @@ if (!user) {
               </div>
 
 {/* Right Column - Conversation View */}
-<div className="lg:col-span-2 mb-24 lg:mb-0" style={{ height: 'calc(100vh - 4rem)' }}>
+<div className="lg:col-span-2" style={{ minHeight: '500px', maxHeight: '70vh' }}>
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   {selectedThread ? (
                     <>
@@ -1594,7 +1594,7 @@ if (!user) {
                       </div>
 
                       {/* Messages Area */}
-                      <div className="flex-1 overflow-y-auto p-6 pb-48 lg:pb-6 space-y-4 bg-gray-50" style={{ maxHeight: '100%' }}>
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50" style={{ minHeight: '400px' }}>
                         {threadMessages[selectedThread]?.map((msg) => {
                           const isFromMe = msg.sender_id === user.id;
                           
@@ -1689,7 +1689,7 @@ if (!user) {
                       </div>
 
                       {/* Reply Area */}
-                      <div className="p-6 border-t bg-white fixed lg:relative bottom-16 lg:bottom-0 left-0 right-0 lg:left-auto lg:right-auto z-10">
+                      <div className="p-6 border-t bg-white mb-20 lg:mb-0">
                         <div className="space-y-3">
                           <textarea
                             value={quickReply}
