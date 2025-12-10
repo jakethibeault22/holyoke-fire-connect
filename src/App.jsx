@@ -1701,20 +1701,19 @@ if (!user) {
   </div>
 )}
                               </div>
+                              
+                              {/* Read Receipts - outside bubble, iMessage style */}
+                              {isFromMe && messageReadReceipts[msg.id] && (
+                                <div className="text-xs text-gray-400 mt-1 mr-2 text-right">
+                                  {messageReadReceipts[msg.id].length > 0 ? (
+                                    <span>Read</span>
+                                  ) : (
+                                    <span>Delivered</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            
-                            {/* Read Receipts - outside bubble, iMessage style */}
-                            {isFromMe && messageReadReceipts[msg.id] && (
-                              <div className="text-xs text-gray-400 mt-1 mr-2 text-right">
-                                {messageReadReceipts[msg.id].length > 0 ? (
-                                  <span>Read</span>
-                                ) : (
-                                  <span>Delivered</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
+                          );
                         })}
                         <div ref={messagesEndRef} />
                       </div>
