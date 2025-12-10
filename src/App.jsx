@@ -1797,7 +1797,7 @@ if (!user) {
       <p className="text-gray-600 mt-1">Compose and send a message to your colleagues</p>
     </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 200px)' }}>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-32 lg:pb-6">
       {/* Left Column - Recipients */}
       <div className="lg:col-span-1 h-full">
         <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col overflow-hidden">
