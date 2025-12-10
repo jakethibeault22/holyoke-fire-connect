@@ -1562,8 +1562,8 @@ if (!user) {
               </div>
 
 {/* Right Column - Conversation View */}
-<div className="lg:col-span-2 h-screen lg:h-auto">
-                <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
+<div className="lg:col-span-2">
+                <div className="bg-white rounded-lg shadow-md flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
                   {selectedThread ? (
                     <>
                       {/* Conversation Header */}
@@ -1594,7 +1594,7 @@ if (!user) {
                       </div>
 
                       {/* Messages Area */}
-                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50" style={{ minHeight: 'calc(100vh - 400px)' }}>
                         {threadMessages[selectedThread]?.map((msg) => {
                           const isFromMe = msg.sender_id === user.id;
                           
