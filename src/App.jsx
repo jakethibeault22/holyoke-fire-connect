@@ -113,7 +113,6 @@ export default function App() {
   const [visibleCategories, setVisibleCategories] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [messageReadReceipts, setMessageReadReceipts] = useState({});
   
   useEffect(() => {
     if (user) {
