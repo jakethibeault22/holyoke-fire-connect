@@ -1543,7 +1543,9 @@ if (!user) {
                               )}
                             </div>
                             <p className={`text-sm ${unread ? 'text-gray-700 font-medium' : 'text-gray-600'}`}>
-                              {msg.sender_name}
+                              {msg.sender_id === user.id 
+                                ? (msg.participant_names || 'Unknown')
+                                : msg.sender_name}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">
                               {new Date(msg.created_at).toLocaleDateString('en-US', { 
@@ -1767,10 +1769,10 @@ if (!user) {
       <p className="text-gray-600 mt-1">Compose and send a message to your colleagues</p>
     </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 200px)' }}>
       {/* Left Column - Recipients */}
-      <div className="lg:col-span-1">
-        <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="lg:col-span-1 h-full">
+        <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col overflow-hidden">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Recipients</h3>
           
           {/* Search Box */}
@@ -1871,9 +1873,9 @@ if (!user) {
       </div>
 
       {/* Right Column - Message Composition */}
-      <div className="lg:col-span-2" style={{ height: '600px' }}>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="space-y-6">
+      <div className="lg:col-span-2 h-full">
+        <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col">
+          <div className="flex-1 space-y-6 overflow-y-auto">
             {/* Subject */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2038,10 +2040,10 @@ if (!user) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 250px)' }}>
               {/* Left Column - User List */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="lg:col-span-1 h-full">
+                <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Users</h3>
                     <button
@@ -2065,7 +2067,7 @@ if (!user) {
                   </div>
 
                   {/* User List */}
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto space-y-2">
                     {users
                       .filter(u => {
                         if (!userSearchQuery) return true;
@@ -2100,8 +2102,8 @@ if (!user) {
               </div>
 
               {/* Right Column - User Details */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="lg:col-span-2 h-full">
+                <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col overflow-hidden">
                   {editingUser ? (
                     <>
                       <div className="flex justify-between items-center mb-6">
@@ -2114,7 +2116,7 @@ if (!user) {
                         </button>
                       </div>
 
-                      <div className="space-y-6">
+                      <div className="flex-1 overflow-y-auto space-y-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Email Address
