@@ -564,6 +564,26 @@ router.post('/messages/mark-read', async (req, res) => {
   }
 });
 
+// Get read receipts for a message
+router.get('/messages/:messageId/read-receipts', async (req, res) => {
+  const { messageId } = req.params;
+  
+  try {
+    const result = await pool.query(`
+      SELECT mr.user_id, mr.read_at, u.name
+      FROM message_reads mr
+      JOIN users u ON mr.user_id = u.id
+      WHERE mr.message_id = $1
+      ORDER BY mr.read_at DESC
+    `, [messageId]);
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching read receipts:', err);
+    res.status(500).json({ error: 'Failed to fetch read receipts' });
+  }
+});
+
 // --- READ STATUS ENDPOINTS ---
 
 // Get read status for a user

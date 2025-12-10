@@ -113,6 +113,7 @@ export default function App() {
   const [visibleCategories, setVisibleCategories] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [messageReadReceipts, setMessageReadReceipts] = useState({});
   
   useEffect(() => {
     if (user) {
@@ -495,9 +496,25 @@ const fetchThreadMessages = async (threadId, forceRefresh = false) => {
     const data = await res.json();
     setThreadMessages(prev => ({ ...prev, [threadId]: data }));
     
-    data.forEach(msg => fetchMessageAttachments(msg.id));
+    data.forEach(msg => {
+      fetchMessageAttachments(msg.id);
+      // Fetch read receipts for messages sent by current user
+      if (msg.sender_id === user.id) {
+        fetchMessageReadReceipts(msg.id);
+      }
+    });
   } catch (err) {
     console.error('Error fetching thread messages:', err);
+  }
+};
+
+const fetchMessageReadReceipts = async (messageId) => {
+  try {
+    const res = await fetch(`/api/messages/${messageId}/read-receipts`);
+    const data = await res.json();
+    setMessageReadReceipts(prev => ({ ...prev, [messageId]: data }));
+  } catch (err) {
+    console.error('Error fetching read receipts:', err);
   }
 };
 
@@ -1684,6 +1701,19 @@ if (!user) {
   </div>
 )}
                               </div>
+                              
+                              {/* Read Receipts - only show for messages sent by current user */}
+                              {isFromMe && messageReadReceipts[msg.id] && (
+                                <div className={`mt-1 text-xs ${isFromMe ? 'text-right' : 'text-left'}`}>
+                                  {messageReadReceipts[msg.id].length > 0 ? (
+                                    <span className="text-gray-500">
+                                      Read by {messageReadReceipts[msg.id].map(r => r.name).join(', ')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">Delivered</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
