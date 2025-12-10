@@ -565,7 +565,7 @@ router.post('/messages/mark-read', async (req, res) => {
 });
 
 // Get read receipts for messages in a thread
-router.get('/messages/thread/:threadId/read-receipts', (req, res) => {
+router.get('/messages/thread/:threadId/read-receipts', async (req, res) => {
   const threadId = req.params.threadId;
   const userId = req.query.userId;
   
@@ -575,14 +575,16 @@ router.get('/messages/thread/:threadId/read-receipts', (req, res) => {
   
   try {
     // Get all read receipts for messages in this thread
-    const receipts = db.prepare(`
+    const result = await pool.query(`
       SELECT mr.message_id, mr.user_id, u.name, mr.read_at
       FROM message_reads mr
       JOIN messages m ON mr.message_id = m.id
       JOIN users u ON mr.user_id = u.id
-      WHERE m.thread_id = ?
+      WHERE m.thread_id = $1
       ORDER BY mr.read_at DESC
-    `).all(threadId);
+    `, [threadId]);
+    
+    const receipts = result.rows;
     
     // Group by message_id
     const grouped = {};
