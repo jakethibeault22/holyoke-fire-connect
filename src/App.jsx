@@ -1594,7 +1594,7 @@ if (!user) {
                       </div>
 
                       {/* Messages Area */}
-                      <div className="overflow-y-scroll p-6 space-y-4 bg-gray-50" style={{ height: '700px' }}>
+                      <div className="overflow-y-scroll p-6 space-y-4 bg-gray-50" style={{ height: '600px' }}>
                         {threadMessages[selectedThread]?.map((msg) => {
                           const isFromMe = msg.sender_id === user.id;
                           
