@@ -1499,9 +1499,9 @@ if (!user) {
   <p className="text-gray-600 mt-1">View and respond to your conversations</p>
 </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-32 lg:mb-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-32 lg:mb-0" style={{ height: 'calc(100vh - 150px)' }}>
 {/* Left Column - Conversation List */}
-<div className="lg:col-span-1 h-screen lg:h-auto">
+<div className="lg:col-span-1 h-full">
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   <div className="p-4 border-b bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
@@ -1564,7 +1564,7 @@ if (!user) {
               </div>
 
 {/* Right Column - Conversation View */}
-<div className="lg:col-span-2">
+<div className="lg:col-span-2 h-full">
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   {selectedThread ? (
                     <>
