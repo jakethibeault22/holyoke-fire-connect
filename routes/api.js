@@ -564,6 +564,46 @@ router.post('/messages/mark-read', async (req, res) => {
   }
 });
 
+// Get read receipts for messages in a thread
+router.get('/messages/thread/:threadId/read-receipts', (req, res) => {
+  const threadId = req.params.threadId;
+  const userId = req.query.userId;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  try {
+    // Get all read receipts for messages in this thread
+    const receipts = db.prepare(`
+      SELECT mr.message_id, mr.user_id, u.name, mr.read_at
+      FROM message_reads mr
+      JOIN messages m ON mr.message_id = m.id
+      JOIN users u ON mr.user_id = u.id
+      WHERE m.thread_id = ?
+      ORDER BY mr.read_at DESC
+    `).all(threadId);
+    
+    // Group by message_id
+    const grouped = {};
+    receipts.forEach(receipt => {
+      if (!grouped[receipt.message_id]) {
+        grouped[receipt.message_id] = [];
+      }
+      grouped[receipt.message_id].push({
+        userId: receipt.user_id,
+        name: receipt.name,
+        readAt: receipt.read_at
+      });
+    });
+    
+    res.json(grouped);
+  } catch (err) {
+    console.error('Error fetching read receipts:', err);
+    res.status(500).json({ error: 'Failed to fetch read receipts' });
+  }
+});
+
 // Get read receipts for a message
 router.get('/messages/:messageId/read-receipts', async (req, res) => {
   const { messageId } = req.params;

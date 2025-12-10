@@ -96,7 +96,7 @@ export default function App() {
   const [selectedThread, setSelectedThread] = useState(null);
   const [quickReply, setQuickReply] = useState("");
   const [quickReplyFiles, setQuickReplyFiles] = useState([]);
-
+  const [messageReadReceipts, setMessageReadReceipts] = useState({});
   const [showCreateUserForm, setShowCreateUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -208,16 +208,20 @@ const fetchAllBulletins = async () => {
 };
   
   
-  // Add this useEffect to poll for new messages every 10 seconds
+// Poll for new messages and read receipts every 10 seconds
 useEffect(() => {
   if (!user) return;
   
   const interval = setInterval(() => {
     fetchInbox();
+    // Refresh read receipts for selected thread
+    if (selectedThread) {
+      fetchReadReceipts(selectedThread);
+    }
   }, 10000); // Poll every 10 seconds
   
   return () => clearInterval(interval);
-}, [user]);
+}, [user, selectedThread]);
 
   const fetchReadStatus = async () => {
     try {
@@ -499,15 +503,22 @@ const fetchThreadMessages = async (threadId, forceRefresh = false) => {
     const data = await res.json();
     setThreadMessages(prev => ({ ...prev, [threadId]: data }));
     
-    data.forEach(msg => {
-      fetchMessageAttachments(msg.id);
-      // Fetch read receipts for messages sent by current user
-      if (msg.sender_id === user.id) {
-        fetchMessageReadReceipts(msg.id);
-      }
-    });
+    data.forEach(msg => fetchMessageAttachments(msg.id));
+    
+    // Fetch read receipts for this thread
+    fetchReadReceipts(threadId);
   } catch (err) {
     console.error('Error fetching thread messages:', err);
+  }
+};
+
+const fetchReadReceipts = async (threadId) => {
+  try {
+    const res = await fetch(`/api/messages/thread/${threadId}/read-receipts?userId=${user.id}`);
+    const data = await res.json();
+    setMessageReadReceipts(prev => ({ ...prev, ...data }));
+  } catch (err) {
+    console.error('Error fetching read receipts:', err);
   }
 };
 
@@ -1643,9 +1654,18 @@ if (!user) {
                                     })}
                                   </span>
                                 </div>
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.body}</p>
+                                <p className="whitespace-pre-wrap text-base">{msg.body}</p>
                                 
-{messageAttachments[msg.id]?.length > 0 && (
+                                {/* Read Receipts - for messages YOU sent */}
+                                {isFromMe && messageReadReceipts[msg.id] && messageReadReceipts[msg.id].length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-blue-500">
+                                    <p className="text-xs opacity-80">
+                                      Read by {messageReadReceipts[msg.id].map(r => r.name).join(', ')}
+                                    </p>
+                                  </div>
+                                )}
+                                
+                                {messageAttachments[msg.id]?.length > 0 && (
   <div className="mt-3 space-y-3 pt-3 border-t border-opacity-20" style={{borderColor: isFromMe ? 'white' : '#e5e7eb'}}>
     {messageAttachments[msg.id].map(att => (
       <div key={att.id}>
