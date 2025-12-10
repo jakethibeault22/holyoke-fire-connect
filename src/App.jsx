@@ -1544,7 +1544,7 @@ if (!user) {
                             </div>
                             <p className={`text-sm ${unread ? 'text-gray-700 font-medium' : 'text-gray-600'}`}>
                               {msg.sender_id === user.id 
-                                ? (msg.participant_names || 'Unknown')
+                                ? (msg.participant_names || 'Other participants')
                                 : msg.sender_name}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">
@@ -1763,7 +1763,7 @@ if (!user) {
         )}
 
 {view === "compose" && (
-  <div className="max-w-7xl mx-auto">
+  <div className="mx-auto px-4">
     <div className="mb-6">
       <h2 className="text-3xl font-bold text-gray-800">New Message</h2>
       <p className="text-gray-600 mt-1">Compose and send a message to your colleagues</p>
@@ -1981,7 +1981,7 @@ if (!user) {
           </div>
         )}
         {view === "users" && (user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) && (
-          <div className="max-w-7xl mx-auto">
+          <div className="mx-auto px-4">
             <div className="mb-6 flex justify-between items-start">
   <div>
     <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
