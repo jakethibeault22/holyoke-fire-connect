@@ -178,20 +178,23 @@ useEffect(() => {
 }, [threadMessages, selectedThread]);
 
 // Auto-mark messages as read when viewing a thread
-// Update this useEffect to be less aggressive
 useEffect(() => {
-  // Only auto-mark if we have a selected thread AND the thread messages are loaded
   if (!user || !selectedThread || !threadMessages[selectedThread] || view !== 'inbox') return;
   
-  const unreadInThread = threadMessages[selectedThread].filter(
-    msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id
-  );
+  // Add a small delay to prevent marking messages immediately after sending
+  const timer = setTimeout(() => {
+    const unreadInThread = threadMessages[selectedThread].filter(
+      msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id
+    );
+    
+    // Mark all unread messages in this thread as read
+    unreadInThread.forEach(msg => {
+      markMessageAsRead(msg.id);
+    });
+  }, 500); // 500ms delay
   
-  // Mark all unread messages in this thread as read
-  unreadInThread.forEach(msg => {
-    markMessageAsRead(msg.id);
-  });
-}, [selectedThread, threadMessages, user?.id]); // REMOVED readMessages from dependencies
+  return () => clearTimeout(timer);
+}, [selectedThread, threadMessages, user?.id]);
 
 const fetchAllBulletins = async () => {
   try {
