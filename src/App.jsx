@@ -1703,17 +1703,15 @@ if (!user) {
                               </div>
                               
                               {/* Read Receipts - only show for messages sent by current user */}
-                              {isFromMe && messageReadReceipts[msg.id] && (
-                                <div className={`mt-1 text-xs ${isFromMe ? 'text-right' : 'text-left'}`}>
-                                  {messageReadReceipts[msg.id].length > 0 ? (
-                                    <span className="text-gray-500">
-                                      Read by {messageReadReceipts[msg.id].map(r => r.name).join(', ')}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">Delivered</span>
-                                  )}
-                                </div>
-                              )}
+{isFromMe && messageReadReceipts[msg.id] && (
+  <div className={`mt-1 text-xs ${isFromMe ? 'text-right' : 'text-left'}`}>
+    {messageReadReceipts[msg.id].length > 0 ? (
+      <span className="text-blue-200">✓✓ Read</span>
+    ) : (
+      <span className="text-blue-300">✓ Delivered</span>
+    )}
+  </div>
+)}
                             </div>
                           );
                         })}
@@ -1969,7 +1967,7 @@ if (!user) {
             </div>
 
             {/* Send Button */}
-            <div className="flex justify-end pt-4 border-t mb-32 lg:mb-0">
+            <div className="flex justify-end pt-4 border-t mb-40 lg:mb-0">
               <button
                 onClick={handleSendMessage}
                 disabled={!messageSubject.trim() || !messageBody.trim() || messageTo.length === 0}
