@@ -1493,7 +1493,7 @@ if (!user) {
         )}
 
 {view === "inbox" && (
-          <div className="max-w-7xl mx-auto">
+          <div className="mx-auto px-4">
             <div className="mb-4 lg:mb-6 hidden lg:block">
   <h2 className="text-3xl font-bold text-gray-800">Messages</h2>
   <p className="text-gray-600 mt-1">View and respond to your conversations</p>
