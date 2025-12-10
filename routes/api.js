@@ -421,6 +421,12 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
     const result = await sendMessage(senderId, recipients, subject, body, threadId ? parseInt(threadId) : null, parentMessageId);
     const messageId = result.lastInsertRowid;
     
+    // Automatically mark the message as read for the sender
+    await pool.query(
+      'INSERT INTO message_reads (user_id, message_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
+      [senderId, messageId]
+    );
+    
     // Add attachments if any
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {

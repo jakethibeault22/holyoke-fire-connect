@@ -1939,7 +1939,7 @@ if (!user) {
             </div>
 
             {/* Send Button */}
-            <div className="flex justify-end pt-4 border-t">
+            <div className="flex justify-end pt-4 border-t mb-32 lg:mb-0">
               <button
                 onClick={handleSendMessage}
                 disabled={!messageSubject.trim() || !messageBody.trim() || messageTo.length === 0}
