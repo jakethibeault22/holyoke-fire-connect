@@ -2346,8 +2346,7 @@ disabled={isSaving}
       <PlusCircle className="h-5 w-5" />
       <span className="text-[10px] font-medium">New</span>
     </button>
-
-    {console.log('Mobile nav check:', user.role, user.roles) || null}
+	
 {/* Admin Panel or Logout */}
     {(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) ? (
       <button
