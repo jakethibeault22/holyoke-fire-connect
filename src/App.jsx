@@ -176,21 +176,19 @@ useEffect(() => {
   }
 }, [threadMessages, selectedThread]);
 
-// Auto-mark messages as read when viewing a thread
+// Auto-mark messages as read when viewing a thread (only messages FROM others)
 useEffect(() => {
   if (!user || !selectedThread || !threadMessages[selectedThread] || view !== 'inbox') return;
   
-  // Add a small delay to prevent marking messages immediately after sending
   const timer = setTimeout(() => {
     const unreadInThread = threadMessages[selectedThread].filter(
       msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id
     );
     
-    // Mark all unread messages in this thread as read
     unreadInThread.forEach(msg => {
       markMessageAsRead(msg.id);
     });
-  }, 500); // 500ms delay
+  }, 500);
   
   return () => clearTimeout(timer);
 }, [selectedThread, threadMessages, user?.id]);
@@ -1655,11 +1653,11 @@ if (!user) {
                                 </div>
                                 <p className="whitespace-pre-wrap text-base">{msg.body}</p>
                                 
-                                {/* Read Receipts - for messages YOU sent */}
-                                {isFromMe && messageReadReceipts[msg.id] && messageReadReceipts[msg.id].length > 0 && (
+                                {/* Read Receipts - for messages YOU sent (exclude yourself) */}
+                                {isFromMe && messageReadReceipts[msg.id] && messageReadReceipts[msg.id].filter(r => r.userId !== user.id).length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-blue-500">
                                     <p className="text-xs opacity-80">
-                                      Read by {messageReadReceipts[msg.id].map(r => r.name).join(', ')}
+                                      Read by {messageReadReceipts[msg.id].filter(r => r.userId !== user.id).map(r => r.name).join(', ')}
                                     </p>
                                   </div>
                                 )}
@@ -1724,16 +1722,7 @@ if (!user) {
 )}
                               </div>
                               
-                              {/* Read Receipts - outside bubble, iMessage style */}
-                              {isFromMe && messageReadReceipts[msg.id] && (
-                                <div className="text-xs text-gray-400 mt-1 mr-2 text-right">
-                                  {messageReadReceipts[msg.id].length > 0 ? (
-                                    <span>Read</span>
-                                  ) : (
-                                    <span>Delivered</span>
-                                  )}
-                                </div>
-                              )}
+                              {/* Read receipts removed - only shown inside bubble */}
                             </div>
                           );
                         })}
