@@ -442,7 +442,7 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
       }
     }
     
-    res.json({ success: true, threadId: result.threadId });
+    res.json({ success: true, threadId: result.threadId, messageId: messageId });
   } catch (err) {
     console.error('Error sending message:', err);
     res.status(500).json({ error: 'Failed to send message' });
