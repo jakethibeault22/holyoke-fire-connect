@@ -39,7 +39,22 @@ const apiRouter = require('./routes/api');
 app.use('/api', apiRouter);
 
 // Serve static files from React build
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+console.log('📁 Checking for dist folder at:', distPath);
+console.log('📁 Dist folder exists:', fs.existsSync(distPath));
+if (fs.existsSync(distPath)) {
+  const distContents = fs.readdirSync(distPath);
+  console.log('📁 Dist folder contents:', distContents);
+  
+  const assetsPath = path.join(distPath, 'assets');
+  if (fs.existsSync(assetsPath)) {
+    const assetsContents = fs.readdirSync(assetsPath);
+    console.log('📁 Assets folder contents:', assetsContents);
+  } else {
+    console.log('❌ Assets folder NOT FOUND');
+  }
+}
+app.use(express.static(distPath));
 
 // All other routes serve the React app
 app.get('*', (req, res) => {
