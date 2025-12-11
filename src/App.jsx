@@ -736,6 +736,11 @@ const handleQuickReply = async () => {
       setQuickReply("");
       setQuickReplyFiles([]);
       
+      // Mark the message we just sent as read immediately
+      if (data.messageId) {
+        markMessageAsRead(data.messageId);
+      }
+      
       // Clear cache and refetch
       setThreadMessages(prev => {
         const updated = {...prev};
@@ -1544,7 +1549,7 @@ if (!user) {
                     ) : (
                       inbox.map(msg => {
                         const isActive = selectedThread === msg.thread_id;
-                        const unread = !readMessages.includes(msg.id);
+                        const unread = !readMessages.includes(msg.id) && msg.sender_id !== user.id;
                         
                         return (
                           <div
