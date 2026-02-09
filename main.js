@@ -11,18 +11,17 @@ const ROLE_HIERARCHY = {
   'repair_division': 2,
   'alarm_division': 3,
   'officer': 4,
-  'prevention': 5,
+  'fire_prevention': 5,
   'repair_division_supervisor': 6,
   'training': 7,
-  'prevention_captain': 8,
-  'alarm_supervisor': 9,
-  'administrative_assistant': 10,
-  'fire_commissioner': 11,
-  'deputy': 12,
-  'XO': 13,
-  'chief': 14,
-  'admin': 15,
-  'super_user': 16,
+  'alarm_supervisor': 8,
+  'administrative_assistant': 9,
+  'fire_commissioner': 10,
+  'deputy_chief': 11,
+  'executive_officer': 12,
+  'fire_chief': 13,
+  'admin': 14,
+  'super_user': 15,
 };
 
 function getRoleLevel(role) {
@@ -36,7 +35,7 @@ function isAdminOrHigher(user) {
 }
 
 function isChiefOrHigher(role) {
-  return getRoleLevel(role) >= getRoleLevel('chief');
+  return getRoleLevel(role) >= getRoleLevel('fire_chief');
 }
 
 // Get all roles for a user
@@ -113,11 +112,11 @@ async function canViewBulletin(userId, category) {
     case 'fire-prevention':
     case 'repair-division':
       return true; // Everyone can view these
-    case 'alarm-division':
+case 'alarm-division':
       return userRoles.some(role => 
         role === 'alarm_division' || 
         role === 'alarm_supervisor' || 
-        getRoleLevel(role) >= getRoleLevel('chief')
+        getRoleLevel(role) >= getRoleLevel('fire_chief')
       );
     case 'commissioners':
       return userRoles.some(role => 
@@ -140,16 +139,16 @@ async function canPostBulletin(userId, category) {
     return true;
   }
   
-  switch(category) {
+switch(category) {
     case 'west-wing':
       return userRoles.some(role => 
         role === 'administrative_assistant' || 
-        getRoleLevel(role) >= getRoleLevel('deputy')
+        getRoleLevel(role) >= getRoleLevel('deputy_chief')
       );
     case 'training':
-      return userRoles.some(role => role === 'training' || getRoleLevel(role) >= getRoleLevel('chief'));
+      return userRoles.some(role => role === 'training' || getRoleLevel(role) >= getRoleLevel('fire_chief'));
     case 'fire-prevention':
-      return userRoles.some(role => role === 'prevention_captain' || getRoleLevel(role) >= getRoleLevel('chief'));
+      return userRoles.some(role => role === 'fire_prevention' || getRoleLevel(role) >= getRoleLevel('fire_chief'));
     case 'repair-division':
       return userRoles.some(role => role === 'repair_division_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
     case 'alarm-division':
@@ -175,13 +174,13 @@ async function canDeleteBulletin(userId, category) {
     return true;
   }
   
-  switch(category) {
+switch(category) {
     case 'west-wing':
     case 'training':
     case 'fire-prevention':
     case 'repair-division':
     case 'alarm-division':
-      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('chief'));
+      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_chief'));
     case 'commissioners':
       return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
     default:
