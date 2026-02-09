@@ -31,6 +31,10 @@ const {
   deleteUser,
   resetPassword,
   changePassword,
+  createPasswordResetRequest,
+  getPasswordResetRequests,
+  resolvePasswordResetRequest,
+  dismissPasswordResetRequest,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,
@@ -38,7 +42,7 @@ const {
 } = require('../main');
 
 // Public routes that don't require authentication
-const publicRoutes = ['/login', '/register'];
+const publicRoutes = ['/login', '/register', '/request-password-reset'];
 
 // Routes that should skip auth (authenticated in other ways)
 const skipAuthRoutes = ['/users', '/users/by-role'];
@@ -707,6 +711,75 @@ router.post('/change-password', async (req, res) => {
   
   const { changePassword } = require('../main');
   const result = await changePassword(userId, newPassword);
+  
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
+});
+
+// Request password reset (public route)
+router.post('/request-password-reset', async (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ error: 'Username required' });
+  }
+  
+  const result = await createPasswordResetRequest(username);
+  
+  if (result.error) {
+    res.status(400).json(result);
+  } else {
+    res.json({ success: true, message: 'Password reset request submitted. An administrator will assist you shortly.' });
+  }
+});
+
+// Get password reset requests (admin only)
+router.get('/admin/password-reset-requests', async (req, res) => {
+  const requestingUserId = req.query.requestingUserId;
+  
+  if (!requestingUserId) {
+    return res.status(400).json({ error: 'requestingUserId required' });
+  }
+  
+  const requestingUser = await getUserById(parseInt(requestingUserId));
+  if (!requestingUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  const userRoles = requestingUser.roles || [requestingUser.role];
+  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_user');
+  
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Unauthorized - Admin access required' });
+  }
+  
+  const requests = await getPasswordResetRequests();
+  res.json(requests);
+});
+
+// Resolve password reset request (admin only)
+router.post('/admin/password-reset-requests/:id/resolve', async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const { adminUserId } = req.body;
+  
+  const result = await resolvePasswordResetRequest(requestId, adminUserId);
+  
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
+});
+
+// Dismiss password reset request (admin only)
+router.post('/admin/password-reset-requests/:id/dismiss', async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const { adminUserId } = req.body;
+  
+  const result = await dismissPasswordResetRequest(requestId, adminUserId);
   
   if (result.error) {
     res.status(403).json(result);

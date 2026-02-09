@@ -685,6 +685,65 @@ async function changePassword(userId, newPassword) {
   return { changes: result.rowCount };
 }
 
+async function createPasswordResetRequest(username) {
+  // Find user by username
+  const userResult = await pool.query(
+    'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  
+  if (userResult.rows.length === 0) {
+    return { error: 'User not found' };
+  }
+  
+  const userId = userResult.rows[0].id;
+  
+  // Check if there's already a pending request
+  const existingRequest = await pool.query(
+    "SELECT id FROM password_reset_requests WHERE user_id = $1 AND status = 'pending'",
+    [userId]
+  );
+  
+  if (existingRequest.rows.length > 0) {
+    return { error: 'A password reset request is already pending for this user' };
+  }
+  
+  // Create new request
+  const result = await pool.query(
+    'INSERT INTO password_reset_requests (user_id) VALUES ($1) RETURNING id',
+    [userId]
+  );
+  
+  return { success: true, id: result.rows[0].id };
+}
+
+async function getPasswordResetRequests() {
+  const result = await pool.query(`
+    SELECT prr.*, u.username, u.name, u.email
+    FROM password_reset_requests prr
+    JOIN users u ON prr.user_id = u.id
+    WHERE prr.status = 'pending'
+    ORDER BY prr.created_at DESC
+  `);
+  return result.rows;
+}
+
+async function resolvePasswordResetRequest(requestId, adminUserId) {
+  const result = await pool.query(
+    "UPDATE password_reset_requests SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolved_by = $1 WHERE id = $2",
+    [adminUserId, requestId]
+  );
+  return { changes: result.rowCount };
+}
+
+async function dismissPasswordResetRequest(requestId, adminUserId) {
+  const result = await pool.query(
+    "UPDATE password_reset_requests SET status = 'dismissed', resolved_at = CURRENT_TIMESTAMP, resolved_by = $1 WHERE id = $2",
+    [adminUserId, requestId]
+  );
+  return { changes: result.rowCount };
+}
+
 module.exports = {
   loginUser,
   getUserById,
@@ -711,6 +770,10 @@ module.exports = {
   deleteUser,
   resetPassword,
   changePassword,
+  createPasswordResetRequest,
+  getPasswordResetRequests,
+  resolvePasswordResetRequest,
+  dismissPasswordResetRequest,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,

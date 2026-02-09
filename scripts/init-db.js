@@ -112,8 +112,21 @@ await client.query(`
       )
     `);
     
-    console.log('Tables created successfully');
+// Password reset requests table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP,
+        resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
     
+    console.log('Tables created successfully');
+	
+	
     // Check if super admin exists
     const adminCheck = await client.query(
       "SELECT * FROM users WHERE username = 'admin'"

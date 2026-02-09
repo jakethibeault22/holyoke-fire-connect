@@ -56,6 +56,11 @@ export default function App() {
   const [newPasswordValue, setNewPasswordValue] = useState("");
   const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordUsername, setForgotPasswordUsername] = useState("");
+  const [forgotPasswordError, setForgotPasswordError] = useState("");
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [passwordResetRequests, setPasswordResetRequests] = useState([]);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -128,8 +133,9 @@ export default function App() {
       fetchUsers();
       fetchReadStatus();
 	  fetchVisibleCategories();
-      if (user.role === 'admin') {
+      if (user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) {
         fetchPendingUsers();
+        fetchPasswordResetRequests();
       }
     }
   }, [user]);
@@ -342,6 +348,69 @@ const handlePasswordChange = async () => {
     }
   };
 
+const handleForgotPassword = async () => {
+    setForgotPasswordError("");
+    
+    if (!forgotPasswordUsername.trim()) {
+      setForgotPasswordError("Please enter your username");
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/request-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: forgotPasswordUsername })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setForgotPasswordSuccess(true);
+      } else {
+        setForgotPasswordError(data.error || "Failed to submit request");
+      }
+    } catch (err) {
+      setForgotPasswordError("Failed to submit request. Please try again.");
+    }
+  };
+
+  const handleResolveResetRequest = async (requestId, userId) => {
+    await resolvePasswordResetRequest(requestId, user.id);
+    setResetPasswordUserId(userId);
+    fetchPasswordResetRequests();
+  };
+
+  const handleDismissResetRequest = async (requestId) => {
+    if (!confirm('Dismiss this password reset request?')) return;
+    
+    try {
+      const res = await fetch(`/api/admin/password-reset-requests/${requestId}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUserId: user.id })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        fetchPasswordResetRequests();
+      }
+    } catch (err) {
+      console.error('Error dismissing request:', err);
+    }
+  };
+
+  const resolvePasswordResetRequest = async (requestId, adminUserId) => {
+    try {
+      await fetch(`/api/admin/password-reset-requests/${requestId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUserId })
+      });
+    } catch (err) {
+      console.error('Error resolving request:', err);
+    }
+  };
+  
   const handleRegister = async () => {
     setRegError("");
     
@@ -405,6 +474,17 @@ const handleLogout = () => {
     }
   };
 
+const fetchPasswordResetRequests = async () => {
+    try {
+      const res = await fetch(`/api/admin/password-reset-requests?requestingUserId=${user.id}`);
+      const data = await res.json();
+      setPasswordResetRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching password reset requests:', err);
+      setPasswordResetRequests([]);
+    }
+  };
+  
   const handleApproveUser = async () => {
     if (!approvingUser || !assignedRole) return;
     
@@ -1057,13 +1137,21 @@ if (!user) {
               <Button onClick={handleLogin} className="w-full bg-red-800 text-white hover:bg-red-900">
                 Login
               </Button>
-              <button
-                onClick={() => setShowRegistration(true)}
-                className="w-full text-sm text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2"
-              >
-                <UserPlus className="h-4 w-4" />
-                New User? Register Here
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setShowRegistration(true)}
+                  className="w-full text-sm text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  New User? Register Here
+                </button>
+                <button
+                  onClick={() => setShowForgotPassword(true)}
+                  className="w-full text-sm text-blue-600 hover:text-blue-800 flex items-center justify-center gap-2"
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1183,6 +1271,84 @@ if (!user) {
           </Card>
         </div>
       )}
+	  {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-md bg-white">
+            <CardContent className="bg-white">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-red-800">Forgot Password</h1>
+                  <p className="text-gray-600 text-sm">Request a password reset</p>
+                </div>
+                <button onClick={() => {
+                  setShowForgotPassword(false);
+                  setForgotPasswordSuccess(false);
+                  setForgotPasswordError("");
+                  setForgotPasswordUsername("");
+                }}>
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              {forgotPasswordSuccess ? (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded p-4 text-center">
+                    <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
+                    <p className="text-green-800 font-semibold">Request Submitted!</p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      An administrator has been notified of your password reset request. They will assist you shortly.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setForgotPasswordSuccess(false);
+                      setForgotPasswordUsername("");
+                    }}
+                    className="w-full bg-red-800 text-white hover:bg-red-900"
+                  >
+                    Close
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Enter your username and we'll notify an administrator to reset your password.
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={forgotPasswordUsername}
+                    onChange={(e) => setForgotPasswordUsername(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleForgotPassword()}
+                    className="w-full p-3 border rounded"
+                  />
+                  {forgotPasswordError && (
+                    <p className="text-red-600 text-sm">{forgotPasswordError}</p>
+                  )}
+                  <Button
+                    onClick={handleForgotPassword}
+                    className="w-full bg-red-800 text-white hover:bg-red-900"
+                  >
+                    Submit Request
+                  </Button>
+                  <button
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setForgotPasswordError("");
+                      setForgotPasswordUsername("");
+                    }}
+                    className="w-full text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -1254,9 +1420,9 @@ if (!user) {
     >
       <Users className="h-5 w-5" />
       <span className="text-base font-medium">Admin Panel</span>
-      {pendingUsers.length > 0 && (
+      {(pendingUsers.length > 0 || passwordResetRequests.length > 0) && (
         <span className="ml-auto bg-red-600 text-white text-xs rounded-full px-2 py-0.5">
-          {pendingUsers.length}
+          {pendingUsers.length + passwordResetRequests.length}
         </span>
       )}
     </button>
@@ -2137,6 +2303,52 @@ if (!user) {
               </div>
             )}
 
+{/* Password Reset Requests Banner */}
+            {passwordResetRequests.length > 0 && (
+              <div className="mb-6 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-lg shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users className="h-5 w-5 text-blue-700" />
+                      <h3 className="text-lg font-semibold text-blue-800">
+                        Password Reset Requests ({passwordResetRequests.length})
+                      </h3>
+                    </div>
+                    <p className="text-sm text-blue-700 mb-4">
+                      Users requesting password resets
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {passwordResetRequests.map(req => (
+                        <div key={req.id} className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                          <p className="font-semibold text-gray-800">{req.name}</p>
+                          <p className="text-sm text-gray-600">{req.username}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(req.created_at).toLocaleString()}
+                          </p>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => handleResolveResetRequest(req.id, req.user_id)}
+                              className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center justify-center gap-1 transition"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Reset
+                            </button>
+                            <button
+                              onClick={() => handleDismissResetRequest(req.id)}
+                              className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 flex items-center justify-center gap-1 transition"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+			
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 250px)' }}>
               {/* Left Column - User List */}
               <div className="lg:col-span-1 h-full">
@@ -2410,9 +2622,9 @@ disabled={isSaving}
       >
         <div className="relative">
           <Users className="h-5 w-5" />
-          {pendingUsers.length > 0 && (
+          {(pendingUsers.length > 0 || passwordResetRequests.length > 0) && (
             <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-              {pendingUsers.length}
+              {pendingUsers.length + passwordResetRequests.length}
             </span>
           )}
         </div>
