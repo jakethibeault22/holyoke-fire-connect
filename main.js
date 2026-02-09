@@ -120,7 +120,10 @@ async function canViewBulletin(userId, category) {
         getRoleLevel(role) >= getRoleLevel('chief')
       );
     case 'commissioners':
-      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
+      return userRoles.some(role => 
+        role === 'administrative_assistant' || 
+        getRoleLevel(role) >= getRoleLevel('fire_commissioner')
+      );
     default:
       return true;
   }
