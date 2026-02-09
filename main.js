@@ -6,7 +6,6 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Role hierarchy helper
 const ROLE_HIERARCHY = {
   'firefighter': 1,
   'repair_division': 2,
@@ -17,12 +16,13 @@ const ROLE_HIERARCHY = {
   'training': 7,
   'prevention_captain': 8,
   'alarm_supervisor': 9,
-  'fire_commissioner': 10,
-  'deputy': 11,
-  'XO': 12,
-  'chief': 13,
-  'admin':14,
-  'super_user': 15,
+  'administrative_assistant': 10,
+  'fire_commissioner': 11,
+  'deputy': 12,
+  'XO': 13,
+  'chief': 14,
+  'admin': 15,
+  'super_user': 16,
 };
 
 function getRoleLevel(role) {
@@ -139,7 +139,10 @@ async function canPostBulletin(userId, category) {
   
   switch(category) {
     case 'west-wing':
-      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('deputy'));
+      return userRoles.some(role => 
+        role === 'administrative_assistant' || 
+        getRoleLevel(role) >= getRoleLevel('deputy')
+      );
     case 'training':
       return userRoles.some(role => role === 'training' || getRoleLevel(role) >= getRoleLevel('chief'));
     case 'fire-prevention':
@@ -149,7 +152,10 @@ async function canPostBulletin(userId, category) {
     case 'alarm-division':
       return userRoles.some(role => role === 'alarm_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
     case 'commissioners':
-      return userRoles.some(role => getRoleLevel(role) >= getRoleLevel('fire_commissioner'));
+      return userRoles.some(role => 
+        role === 'administrative_assistant' || 
+        getRoleLevel(role) >= getRoleLevel('fire_commissioner')
+      );
     default:
       return false;
   }

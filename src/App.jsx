@@ -41,6 +41,7 @@ const ROLE_LABELS = {
   'training': 'Training',
   'prevention_captain': 'Prevention Captain',
   'alarm_supervisor': 'Alarm Supervisor',
+  'administrative_assistant': 'Administrative Assistant',
   'fire_commissioner': 'Fire Commissioner',
   'deputy': 'Deputy',
   'xo': 'XO',
