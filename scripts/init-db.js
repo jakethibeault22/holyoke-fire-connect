@@ -14,7 +14,7 @@ async function initDatabase() {
     console.log('Creating tables...');
     
     // Users table
-    await client.query(`
+await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -24,6 +24,7 @@ async function initDatabase() {
         is_admin INTEGER DEFAULT 0,
         role VARCHAR(50) DEFAULT 'firefighter',
         status VARCHAR(20) DEFAULT 'pending',
+        must_change_password BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

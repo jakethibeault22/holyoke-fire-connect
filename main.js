@@ -192,7 +192,7 @@ switch(category) {
 async function loginUser(username, password) {
   const hashedPassword = hashPassword(password);
   const result = await pool.query(
-    'SELECT id, email, name, username, is_admin, role, status FROM users WHERE LOWER(username) = LOWER($1) AND password_hash = $2',
+    'SELECT id, email, name, username, is_admin, role, status, must_change_password FROM users WHERE LOWER(username) = LOWER($1) AND password_hash = $2',
     [username, hashedPassword]
   );
   
@@ -655,7 +655,7 @@ async function deleteUser(userId, requestingUserId) {
   return { changes: result.rowCount };
 }
 
-async function resetPassword(userId, newPassword, requestingUserId) {
+async function resetPassword(userId, newPassword, requestingUserId, forceChange = true) {
   const requestingUser = await getUserById(requestingUserId);
   if (!isAdminOrHigher(requestingUser)) {
     return { error: 'Unauthorized - Admin access required' };
@@ -669,7 +669,19 @@ async function resetPassword(userId, newPassword, requestingUserId) {
   }
   
   const hashedPassword = hashPassword(newPassword);
-  const result = await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
+  const result = await pool.query(
+    'UPDATE users SET password_hash = $1, must_change_password = $2 WHERE id = $3', 
+    [hashedPassword, forceChange, userId]
+  );
+  return { changes: result.rowCount };
+}
+
+async function changePassword(userId, newPassword) {
+  const hashedPassword = hashPassword(newPassword);
+  const result = await pool.query(
+    'UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2',
+    [hashedPassword, userId]
+  );
   return { changes: result.rowCount };
 }
 
@@ -698,6 +710,7 @@ module.exports = {
   updateUser,
   deleteUser,
   resetPassword,
+  changePassword,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,

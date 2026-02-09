@@ -30,6 +30,7 @@ const {
   updateUser,
   deleteUser,
   resetPassword,
+  changePassword,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,
@@ -690,6 +691,23 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
   const userId = parseInt(req.params.id);
   const { newPassword, requestingUserId } = req.body;
   const result = await resetPassword(userId, newPassword, requestingUserId);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
+});
+
+router.post('/change-password', async (req, res) => {
+  const { userId, newPassword } = req.body;
+  
+  if (!userId || !newPassword) {
+    return res.status(400).json({ error: 'userId and newPassword required' });
+  }
+  
+  const { changePassword } = require('../main');
+  const result = await changePassword(userId, newPassword);
+  
   if (result.error) {
     res.status(403).json(result);
   } else {

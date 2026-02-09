@@ -52,6 +52,10 @@ const ROLE_LABELS = {
 export default function App() {
   const [user, setUser] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPasswordValue, setNewPasswordValue] = useState("");
+  const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
+  const [passwordChangeError, setPasswordChangeError] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -267,7 +271,7 @@ useEffect(() => {
     }
   };
 
-  const handleLogin = async () => {
+const handleLogin = async () => {
     setLoginError("");
     try {
       const res = await fetch('/api/login', {
@@ -281,11 +285,60 @@ useEffect(() => {
         setUser(data.user);
         setLoginUsername("");
         setLoginPassword("");
+        
+        // Check if user must change password
+        if (data.user.must_change_password) {
+          setShowPasswordChange(true);
+        }
       } else {
         setLoginError(data.error || "Invalid username or password");
       }
     } catch (err) {
       setLoginError("Login failed. Please try again.");
+    }
+  };
+
+const handlePasswordChange = async () => {
+    setPasswordChangeError("");
+    
+    if (!newPasswordValue.trim() || !confirmPasswordValue.trim()) {
+      setPasswordChangeError("Please enter and confirm your new password");
+      return;
+    }
+    
+    if (newPasswordValue !== confirmPasswordValue) {
+      setPasswordChangeError("Passwords do not match");
+      return;
+    }
+    
+    if (newPasswordValue.length < 6) {
+      setPasswordChangeError("Password must be at least 6 characters");
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          newPassword: newPasswordValue
+        })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setShowPasswordChange(false);
+        setNewPasswordValue("");
+        setConfirmPasswordValue("");
+        // Update user object to reflect password changed
+        setUser({...user, must_change_password: false});
+        alert('Password changed successfully!');
+      } else {
+        setPasswordChangeError(data.error || "Failed to change password");
+      }
+    } catch (err) {
+      setPasswordChangeError("Failed to change password. Please try again.");
     }
   };
 
@@ -2559,6 +2612,57 @@ className="w-full p-2 border rounded"
       </div>
     )}
 
+{showPasswordChange && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <Card className="w-full max-w-md bg-white">
+          <CardContent className="bg-white">
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-red-800">Change Your Password</h3>
+              <p className="text-sm text-gray-600 mt-2">
+                Your administrator has reset your password. Please choose a new password to continue.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPasswordValue}
+                  onChange={(e) => setNewPasswordValue(e.target.value)}
+                  className="w-full p-3 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPasswordValue}
+                  onChange={(e) => setConfirmPasswordValue(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handlePasswordChange()}
+                  className="w-full p-3 border rounded"
+                />
+              </div>
+              {passwordChangeError && (
+                <p className="text-red-600 text-sm">{passwordChangeError}</p>
+              )}
+              <Button onClick={handlePasswordChange} className="w-full">
+                Change Password
+              </Button>
+              <p className="text-xs text-gray-500 text-center">
+                You must change your password before accessing the application
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )}
+	
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
         <div className="grid grid-cols-4 h-16">
