@@ -45,7 +45,7 @@ const {
 const publicRoutes = ['/login', '/register', '/request-password-reset'];
 
 // Routes that should skip auth (authenticated in other ways)
-const skipAuthRoutes = ['/users', '/users/by-role', '/admin/password-reset-requests'];
+const skipAuthRoutes = ['/users', '/users/by-role'];
 
 // Middleware to check authentication for non-public routes
 const requireAuth = (req, res, next) => {
@@ -56,6 +56,11 @@ const requireAuth = (req, res, next) => {
   
   // Skip auth for certain routes (they handle their own auth)
   if (skipAuthRoutes.some(route => req.path.startsWith(route))) {
+    return next();
+  }
+  
+  // Allow admin password reset routes - they validate requestingUserId internally
+  if (req.path.startsWith('/admin/password-reset-requests')) {
     return next();
   }
   
