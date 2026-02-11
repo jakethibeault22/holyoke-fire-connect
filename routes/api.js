@@ -30,11 +30,6 @@ const {
   updateUser,
   deleteUser,
   resetPassword,
-  changePassword,
-  createPasswordResetRequest,
-  getPasswordResetRequests,
-  resolvePasswordResetRequest,
-  dismissPasswordResetRequest,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,
@@ -125,6 +120,229 @@ router.post('/register', async (req, res) => {
     res.status(400).json(result);
   } else {
     res.json({ success: true, message: 'Registration submitted. Please wait for admin approval.' });
+  }
+});
+
+// Request password reset (public - no auth required)
+router.post('/request-password-reset', async (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+  
+  try {
+    // Check if user exists
+    const userResult = await pool.query(
+      'SELECT id, email, name FROM users WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+    
+    if (userResult.rows.length === 0) {
+      // Don't reveal if user exists or not for security
+      return res.json({ success: true, message: 'If your username exists, an administrator will review your request.' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Check if there's already a pending request
+    const existingRequest = await pool.query(
+      'SELECT id FROM password_reset_requests WHERE user_id = $1 AND status = $2',
+      [user.id, 'pending']
+    );
+    
+    if (existingRequest.rows.length > 0) {
+      return res.json({ success: true, message: 'You already have a pending password reset request.' });
+    }
+    
+    // Create password reset request
+    await pool.query(
+      'INSERT INTO password_reset_requests (user_id, status) VALUES ($1, $2)',
+      [user.id, 'pending']
+    );
+    
+    res.json({ success: true, message: 'Password reset request submitted. An administrator will review your request.' });
+  } catch (err) {
+    console.error('Error requesting password reset:', err);
+    res.status(500).json({ error: 'Failed to submit password reset request' });
+  }
+});
+
+// Get password reset requests (Admin only)
+router.get('/admin/password-reset-requests', async (req, res) => {
+  const { requestingUserId } = req.query;
+  
+  if (!requestingUserId) {
+    return res.status(400).json({ error: 'requestingUserId required' });
+  }
+  
+  try {
+    const requestingUser = await getUserById(parseInt(requestingUserId));
+    if (!requestingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userRoles = requestingUser.roles || [requestingUser.role];
+    const isAdmin = userRoles.some(role => 
+      role === 'admin' || role === 'super_user' || role === 'chief'
+    );
+    
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT prr.id, prr.user_id, prr.created_at, prr.status,
+             u.name, u.username, u.email
+      FROM password_reset_requests prr
+      JOIN users u ON prr.user_id = u.id
+      WHERE prr.status = 'pending'
+      ORDER BY prr.created_at DESC
+    `);
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching password reset requests:', err);
+    res.status(500).json({ error: 'Failed to fetch password reset requests' });
+  }
+});
+
+// Approve password reset request
+router.post('/admin/password-reset-requests/:id/approve', async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const { newPassword, requestingUserId } = req.body;
+  
+  if (!newPassword || !requestingUserId) {
+    return res.status(400).json({ error: 'newPassword and requestingUserId are required' });
+  }
+  
+  try {
+    const requestingUser = await getUserById(parseInt(requestingUserId));
+    if (!requestingUser) {
+      return res.status(404).json({ error: 'Requesting user not found' });
+    }
+    
+    const userRoles = requestingUser.roles || [requestingUser.role];
+    const isAdmin = userRoles.some(role => 
+      role === 'admin' || role === 'super_user' || role === 'chief'
+    );
+    
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
+    }
+    
+    // Get the password reset request
+    const requestResult = await pool.query(
+      'SELECT user_id FROM password_reset_requests WHERE id = $1 AND status = $2',
+      [requestId, 'pending']
+    );
+    
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Password reset request not found or already processed' });
+    }
+    
+    const userId = requestResult.rows[0].user_id;
+    
+    // Reset the user's password and set must_change_password flag
+    const result = await resetPassword(userId, newPassword, requestingUserId);
+    
+    if (result.error) {
+      return res.status(403).json(result);
+    }
+    
+    // Mark user as must change password
+    await pool.query(
+      'UPDATE users SET must_change_password = true WHERE id = $1',
+      [userId]
+    );
+    
+    // Mark request as approved
+    await pool.query(
+      'UPDATE password_reset_requests SET status = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['approved', requestId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error approving password reset:', err);
+    res.status(500).json({ error: 'Failed to approve password reset' });
+  }
+});
+
+// Reject password reset request
+router.post('/admin/password-reset-requests/:id/reject', async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const { requestingUserId } = req.body;
+  
+  if (!requestingUserId) {
+    return res.status(400).json({ error: 'requestingUserId is required' });
+  }
+  
+  try {
+    const requestingUser = await getUserById(parseInt(requestingUserId));
+    if (!requestingUser) {
+      return res.status(404).json({ error: 'Requesting user not found' });
+    }
+    
+    const userRoles = requestingUser.roles || [requestingUser.role];
+    const isAdmin = userRoles.some(role => 
+      role === 'admin' || role === 'super_user' || role === 'chief'
+    );
+    
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
+    }
+    
+    // Mark request as rejected
+    const result = await pool.query(
+      'UPDATE password_reset_requests SET status = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2 AND status = $3',
+      ['rejected', requestId, 'pending']
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Password reset request not found or already processed' });
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error rejecting password reset:', err);
+    res.status(500).json({ error: 'Failed to reject password reset' });
+  }
+});
+
+// Change own password (after admin reset)
+router.post('/change-password', async (req, res) => {
+  const { userId, oldPassword, newPassword } = req.body;
+  
+  if (!userId || !oldPassword || !newPassword) {
+    return res.status(400).json({ error: 'userId, oldPassword, and newPassword are required' });
+  }
+  
+  try {
+    const crypto = require('crypto');
+    const hashedOldPassword = crypto.createHash('sha256').update(oldPassword).digest('hex');
+    
+    // Verify old password
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE id = $1 AND password_hash = $2',
+      [userId, hashedOldPassword]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    
+    // Set new password and clear must_change_password flag
+    const hashedNewPassword = crypto.createHash('sha256').update(newPassword).digest('hex');
+    await pool.query(
+      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
+      [hashedNewPassword, userId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error changing password:', err);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -707,92 +925,6 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
   }
 });
 
-router.post('/change-password', async (req, res) => {
-  const { userId, newPassword } = req.body;
-  
-  if (!userId || !newPassword) {
-    return res.status(400).json({ error: 'userId and newPassword required' });
-  }
-  
-  const { changePassword } = require('../main');
-  const result = await changePassword(userId, newPassword);
-  
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
-  }
-});
-
-// Request password reset (public route)
-router.post('/request-password-reset', async (req, res) => {
-  const { username } = req.body;
-  
-  if (!username) {
-    return res.status(400).json({ error: 'Username required' });
-  }
-  
-  const result = await createPasswordResetRequest(username);
-  
-  if (result.error) {
-    res.status(400).json(result);
-  } else {
-    res.json({ success: true, message: 'Password reset request submitted. An administrator will assist you shortly.' });
-  }
-});
-
-// Get password reset requests (admin only)
-router.get('/admin/password-reset-requests', async (req, res) => {
-  const requestingUserId = req.query.requestingUserId;
-  
-  if (!requestingUserId) {
-    return res.status(400).json({ error: 'requestingUserId required' });
-  }
-  
-  const requestingUser = await getUserById(parseInt(requestingUserId));
-  if (!requestingUser) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  
-  const userRoles = requestingUser.roles || [requestingUser.role];
-  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_user');
-  
-  if (!isAdmin) {
-    return res.status(403).json({ error: 'Unauthorized - Admin access required' });
-  }
-  
-  const requests = await getPasswordResetRequests();
-  res.json(requests);
-});
-
-// Resolve password reset request (admin only)
-router.post('/admin/password-reset-requests/:id/resolve', async (req, res) => {
-  const requestId = parseInt(req.params.id);
-  const { adminUserId } = req.body;
-  
-  const result = await resolvePasswordResetRequest(requestId, adminUserId);
-  
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
-  }
-});
-
-// Dismiss password reset request (admin only)
-router.post('/admin/password-reset-requests/:id/dismiss', async (req, res) => {
-  const requestId = parseInt(req.params.id);
-  const { adminUserId } = req.body;
-  
-  const result = await dismissPasswordResetRequest(requestId, adminUserId);
-  
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
-  }
-});
-
 // ADMIN: Export database info
 router.get('/admin/export-sql', async (req, res) => {
   const { userId } = req.query;
@@ -813,7 +945,5 @@ router.get('/admin/export-sql', async (req, res) => {
     res.status(500).json({ error: 'Backup failed', details: err.message });
   }
 });
-
-// One-time: Initialize Supabase database
 
 module.exports = router;
