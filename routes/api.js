@@ -436,6 +436,40 @@ router.post('/admin/reject-user/:id', async (req, res) => {
   }
 });
 
+// Save push notification token
+router.post('/users/:userId/push-token', async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  const { pushToken } = req.body;
+  
+  if (!pushToken) {
+    return res.status(400).json({ error: 'pushToken is required' });
+  }
+  
+  try {
+    await pool.query(
+      'INSERT INTO push_tokens (user_id, token) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET token = $2, updated_at = CURRENT_TIMESTAMP',
+      [userId, pushToken]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving push token:', err);
+    res.status(500).json({ error: 'Failed to save push token' });
+  }
+});
+
+// Remove push notification token
+router.delete('/users/:userId/push-token', async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  
+  try {
+    await pool.query('DELETE FROM push_tokens WHERE user_id = $1', [userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing push token:', err);
+    res.status(500).json({ error: 'Failed to remove push token' });
+  }
+});
+
 // --- Bulletins ---
 router.get('/bulletins', async (req, res) => {
   const bulletins = await getBulletins();

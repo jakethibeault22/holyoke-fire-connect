@@ -1,0 +1,47 @@
+export const ROLE_LABELS = {
+  'firefighter': 'Firefighter',
+  'repair_division': 'Repair Division',
+  'alarm_division': 'Alarm Division',
+  'officer': 'Officer',
+  'prevention': 'Prevention',
+  'repair_division_supervisor': 'Repair Division Supervisor',
+  'training': 'Training',
+  'prevention_captain': 'Prevention Captain',
+  'alarm_supervisor': 'Alarm Supervisor',
+  'fire_commissioner': 'Fire Commissioner',
+  'deputy': 'Deputy',
+  'XO': 'XO',
+  'chief': 'Chief',
+  'admin': 'Admin',
+  'super_user': 'Super User',
+};
+
+export const CATEGORIES = [
+  { id: 'west-wing', label: 'Chiefs' },
+  { id: 'training', label: 'Training' },
+  { id: 'fire-prevention', label: 'Fire Prevention' },
+  { id: 'repair-division', label: 'Repair Division' },
+  { id: 'alarm-division', label: 'Alarm Division' },
+  { id: 'commissioners', label: 'Commissioners' },
+];
+
+export const COLORS = {
+  primary: '#991b1b',
+  primaryDark: '#7f1d1d',
+  primaryLight: '#dc2626',
+  background: '#f3f4f6',
+  white: '#ffffff',
+  gray100: '#f3f4f6',
+  gray200: '#e5e7eb',
+  gray300: '#d1d5db',
+  gray400: '#9ca3af',
+  gray500: '#6b7280',
+  gray600: '#4b5563',
+  gray700: '#374151',
+  gray800: '#1f2937',
+  gray900: '#111827',
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444',
+  info: '#3b82f6',
+};
