@@ -1790,7 +1790,7 @@ if (!user) {
   </CardContent>
 </Card>
 ))
-            )}
+            }
             </div>
           </div>
         )}
