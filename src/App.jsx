@@ -2804,7 +2804,7 @@ disabled={isSaving}
                       <div className="text-xs text-gray-400 mb-3">
                         Uploaded by {file.uploaded_by_name} on {new Date(file.created_at).toLocaleDateString()}
                       </div>
-                      
+                      <a
                         href={`/api/files/${file.id}/download`}
                         download
                         className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition"
@@ -2818,12 +2818,7 @@ disabled={isSaving}
               )}
             </div>
           </div>
-        )}
-                ))
-              )}
-            </div>
-          </div>
-        )}
+)}
       
 	  {/* Mobile Bottom Navigation */}
 <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
