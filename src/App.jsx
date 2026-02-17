@@ -1783,19 +1783,19 @@ if (!user) {
                   </div>
                 )}
               </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-    )}
-  </CardContent>{view === "inbox" && (
-</Card>
+      )}
+    </CardContent>
+  </Card>
 ))
               )}
-</div>
-</div>
+            </div>
+          </div>
         )}
 
-{view === "inbox" && (
+        {view === "inbox" && (
           <div className="mx-auto px-4">
             <div className="mb-4 lg:mb-6 hidden lg:block">
   <h2 className="text-3xl font-bold text-gray-800">Messages</h2>
