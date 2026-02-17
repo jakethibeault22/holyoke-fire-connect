@@ -90,7 +90,8 @@ export default function App() {
   const [bulletinTitle, setBulletinTitle] = useState("");
   const [bulletinBody, setBulletinBody] = useState("");
   const [bulletinFiles, setBulletinFiles] = useState([]);
-  
+  const [bulletinSearch, setBulletinSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
   const [messageTo, setMessageTo] = useState([]);
   const [messageToRoles, setMessageToRoles] = useState([]);
   const [messageRecipientSearch, setMessageRecipientSearch] = useState("");
@@ -1454,6 +1455,27 @@ if (!user) {
         {view === "bulletins" && (
           <div className="space-y-4">
             <div className="space-y-3">
+            {/* Search Bar */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search bulletins..."
+                value={bulletinSearch}
+                onChange={(e) => setBulletinSearch(e.target.value)}
+                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+              <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {bulletinSearch && (
+                <button
+                  onClick={() => setBulletinSearch("")}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
   {/* Category tabs */}
   <div className="flex gap-2 flex-wrap">
     {/* Chiefs tab is always visible */}
@@ -1636,14 +1658,30 @@ if (!user) {
             )}
 
             <div className="space-y-3">
-              {bulletins.length === 0 ? (
+              {bulletins.filter(b => {
+                if (!bulletinSearch) return true;
+                const query = bulletinSearch.toLowerCase();
+                return (
+                  b.title.toLowerCase().includes(query) ||
+                  b.body.toLowerCase().includes(query) ||
+                  b.author_name.toLowerCase().includes(query)
+                );
+              }).length === 0 ? (
                 <Card>
                   <CardContent>
                     <p className="text-gray-500 text-center">No bulletins</p>
                   </CardContent>
                 </Card>
               ) : (
-                bulletins.map((b, index) => (
+                bulletins.filter(b => {
+                  if (!bulletinSearch) return true;
+                  const query = bulletinSearch.toLowerCase();
+                  return (
+                    b.title.toLowerCase().includes(query) ||
+                    b.body.toLowerCase().includes(query) ||
+                    b.author_name.toLowerCase().includes(query)
+                  );
+                }).map((b, index) => (
   <Card 
     key={b.id} 
     className={`cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50'} ${!readBulletins.includes(b.id) ? 'border-l-4 border-l-yellow-400' : ''}`}
@@ -1756,7 +1794,27 @@ if (!user) {
 <div className="lg:col-span-1 h-full">
                 <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
                   <div className="p-4 border-b bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-800">Conversations</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Conversations</h3>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search messages..."
+                        value={messageSearch}
+                        onChange={(e) => setMessageSearch(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                      <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {messageSearch && (
+                        <button
+                          onClick={() => setMessageSearch("")}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex-1 overflow-y-auto">
@@ -1766,7 +1824,15 @@ if (!user) {
                         <p className="text-gray-500 text-sm">No messages yet</p>
                       </div>
                     ) : (
-                      inbox.map(msg => {
+                      inbox.filter(msg => {
+                        if (!messageSearch) return true;
+                        const query = messageSearch.toLowerCase();
+                        return (
+                          msg.subject.toLowerCase().includes(query) ||
+                          msg.sender_name.toLowerCase().includes(query) ||
+                          (msg.participant_names && msg.participant_names.toLowerCase().includes(query))
+                        );
+                      }).map(msg => {
                         const isActive = selectedThread === msg.thread_id;
                         const unread = !readMessages.includes(msg.id) && msg.sender_id !== user.id;
                         
