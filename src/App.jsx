@@ -119,6 +119,13 @@ export default function App() {
   const [approvingUser, setApprovingUser] = useState(null);
   const [assignedRole, setAssignedRole] = useState("firefighter");
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [files, setFiles] = useState([]);
+  const [fileCategory, setFileCategory] = useState("all");
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadCategory, setUploadCategory] = useState("general");
   const messagesEndRef = useRef(null);
   const [visibleCategories, setVisibleCategories] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -140,6 +147,12 @@ export default function App() {
       }
     }
   }, [user]);
+  
+  useEffect(() => {
+    if (user && view === 'files') {
+      fetchFiles();
+    }
+  }, [user, view, fileCategory]);
   
   // Save user to localStorage whenever user changes
 useEffect(() => {
@@ -2624,6 +2637,185 @@ disabled={isSaving}
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+      
+	  )}
+        
+        {view === "files" && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-3xl font-bold text-gray-800">File Library</h2>
+              {(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) && (
+                <button
+                  onClick={() => setShowUploadForm(true)}
+                  className="bg-red-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-800 transition flex items-center gap-2"
+                >
+                  <PlusCircle className="h-5 w-5" />
+                  Upload File
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setFileCategory('all')}
+                className={`px-4 py-2 rounded ${
+                  fileCategory === 'all' ? 'bg-red-700 text-white' : 'bg-white text-gray-700'
+                }`}
+              >
+                All Files
+              </button>
+              <button
+                onClick={() => setFileCategory('general')}
+                className={`px-4 py-2 rounded ${
+                  fileCategory === 'general' ? 'bg-red-700 text-white' : 'bg-white text-gray-700'
+                }`}
+              >
+                General
+              </button>
+              <button
+                onClick={() => setFileCategory('training')}
+                className={`px-4 py-2 rounded ${
+                  fileCategory === 'training' ? 'bg-red-700 text-white' : 'bg-white text-gray-700'
+                }`}
+              >
+                Training
+              </button>
+              <button
+                onClick={() => setFileCategory('sops')}
+                className={`px-4 py-2 rounded ${
+                  fileCategory === 'sops' ? 'bg-red-700 text-white' : 'bg-white text-gray-700'
+                }`}
+              >
+                SOPs
+              </button>
+              <button
+                onClick={() => setFileCategory('forms')}
+                className={`px-4 py-2 rounded ${
+                  fileCategory === 'forms' ? 'bg-red-700 text-white' : 'bg-white text-gray-700'
+                }`}
+              >
+                Forms
+              </button>
+            </div>
+
+            {/* Upload Form Modal */}
+            {showUploadForm && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <Card className="w-full max-w-md bg-white">
+                  <CardContent className="bg-white">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">Upload File</h3>
+                      <button onClick={() => {
+                        setShowUploadForm(false);
+                        setUploadTitle("");
+                        setUploadDescription("");
+                        setUploadFile(null);
+                      }}>
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="File Title"
+                        value={uploadTitle}
+                        onChange={(e) => setUploadTitle(e.target.value)}
+                        className="w-full p-2 border rounded"
+                      />
+                      <textarea
+                        placeholder="Description (optional)"
+                        value={uploadDescription}
+                        onChange={(e) => setUploadDescription(e.target.value)}
+                        rows={3}
+                        className="w-full p-2 border rounded"
+                      />
+                      <select
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="general">General</option>
+                        <option value="training">Training</option>
+                        <option value="sops">SOPs</option>
+                        <option value="forms">Forms</option>
+                      </select>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Select File</label>
+                        <input
+                          type="file"
+                          onChange={(e) => setUploadFile(e.target.files[0])}
+                          className="w-full p-2 border rounded"
+                        />
+                        {uploadFile && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            {uploadFile.name} ({formatFileSize(uploadFile.size)})
+                          </p>
+                        )}
+                      </div>
+                      <Button onClick={handleUploadFile} className="w-full">
+                        Upload
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Files List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {files.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent>
+                    <p className="text-gray-500 text-center">No files</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                files.map(file => (
+                  <Card key={file.id} className="hover:shadow-lg transition">
+                    <CardContent>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{file.title}</h3>
+                            <p className="text-xs text-gray-500">{file.original_filename}</p>
+                          </div>
+                        </div>
+                        {(user.role === 'admin' || user.role === 'super_user' || file.uploaded_by === user.id) && (
+                          <button
+                            onClick={() => handleDeleteFile(file.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {file.description && (
+                        <p className="text-sm text-gray-600 mb-2">{file.description}</p>
+                      )}
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                        <span>{formatFileSize(file.file_size)}</span>
+                        <span className="px-2 py-1 bg-gray-100 rounded">{file.category}</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mb-3">
+                        Uploaded by {file.uploaded_by_name} on {new Date(file.created_at).toLocaleDateString()}
+                      </div>
+                      
+                        href={`/api/files/${file.id}/download`}
+                        download
+                        className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download
+                      </a>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
         )}
