@@ -1789,11 +1789,11 @@ if (!user) {
     )}
   </CardContent>
 </Card>
-))
-            }
-            </div>
-          </div>
-        )}
+))}
+</div>
+</div>
+)}
+
 
 {view === "inbox" && (
           <div className="mx-auto px-4">
