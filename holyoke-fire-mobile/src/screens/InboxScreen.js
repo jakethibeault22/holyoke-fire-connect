@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function InboxScreen({ user, onRefresh }) {
   const [inbox, setInbox] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
+  const [messageSearch, setMessageSearch] = useState("");
   const [threadMessages, setThreadMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,12 +60,12 @@ export default function InboxScreen({ user, onRefresh }) {
     try {
       const data = await getThreadMessages(threadId, user.id);
       setThreadMessages(Array.isArray(data) ? data : []);
-      
+
       // Mark unread messages as read
       const unreadInThread = data.filter(
         msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id
       );
-      
+
       for (const msg of unreadInThread) {
         await handleMarkAsRead(msg.id);
       }
@@ -76,11 +77,11 @@ export default function InboxScreen({ user, onRefresh }) {
 
   const handleMarkAsRead = async (messageId) => {
     if (readMessages.includes(messageId)) return;
-    
+
     try {
       await markMessageAsRead(user.id, messageId);
       setReadMessages(prev => [...prev, messageId]);
-      if (onRefresh) onRefresh(); // Update badge count
+      if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Error marking message as read:', error);
     }
@@ -114,7 +115,7 @@ export default function InboxScreen({ user, onRefresh }) {
       formData.append('parentMessageId', currentThread.id);
 
       await sendMessage(formData);
-      
+
       setQuickReply('');
       await loadThreadMessages(selectedThread);
       await loadInbox();
@@ -155,10 +156,39 @@ export default function InboxScreen({ user, onRefresh }) {
     );
   };
 
+  const filteredInbox = inbox.filter(msg => {
+    if (!messageSearch) return true;
+    const query = messageSearch.toLowerCase();
+    return (
+      msg.subject.toLowerCase().includes(query) ||
+      msg.sender_name.toLowerCase().includes(query) ||
+      (msg.participant_names && msg.participant_names.toLowerCase().includes(query))
+    );
+  });
+
   if (!selectedThread) {
     // Conversation List View
     return (
       <View style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputWrapper}>
+            <Ionicons name="search-outline" size={18} color={COLORS.gray400} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search messages..."
+              placeholderTextColor={COLORS.gray400}
+              value={messageSearch}
+              onChangeText={setMessageSearch}
+            />
+            {messageSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setMessageSearch("")}>
+                <Ionicons name="close-circle" size={18} color={COLORS.gray400} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
@@ -174,15 +204,17 @@ export default function InboxScreen({ user, onRefresh }) {
               />
             }
           >
-            {inbox.length === 0 ? (
+            {filteredInbox.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="mail-outline" size={64} color={COLORS.gray300} />
-                <Text style={styles.emptyText}>No messages yet</Text>
+                <Text style={styles.emptyText}>
+                  {messageSearch ? 'No results found' : 'No messages yet'}
+                </Text>
               </View>
             ) : (
-              inbox.map(msg => {
+              filteredInbox.map(msg => {
                 const unread = !readMessages.includes(msg.id) && msg.sender_id !== user.id;
-                
+
                 return (
                   <TouchableOpacity
                     key={msg.id}
@@ -204,7 +236,6 @@ export default function InboxScreen({ user, onRefresh }) {
                         >
                           {msg.subject}
                         </Text>
-                        {/* Removed message count badge - only showing unread dot */}
                       </View>
                       {unread && <View style={styles.unreadDot} />}
                     </View>
@@ -238,7 +269,7 @@ export default function InboxScreen({ user, onRefresh }) {
 
   // Thread Messages View
   const currentThread = inbox.find(m => m.thread_id === selectedThread);
-  
+
   return (
     <View style={styles.container}>
       {/* Thread Header */}
@@ -269,7 +300,7 @@ export default function InboxScreen({ user, onRefresh }) {
       <ScrollView style={styles.messagesContainer}>
         {threadMessages.map(msg => {
           const isFromMe = msg.sender_id === user.id;
-          
+
           return (
             <View
               key={msg.id}
@@ -353,6 +384,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.gray900,
+    padding: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -397,18 +454,6 @@ const styles = StyleSheet.create({
   conversationSubjectUnread: {
     fontWeight: '700',
     color: COLORS.gray900,
-  },
-  messageCountBadge: {
-    backgroundColor: COLORS.info,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  messageCountText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
   },
   unreadDot: {
     width: 8,

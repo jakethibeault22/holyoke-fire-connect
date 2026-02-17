@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { getBulletinsByCategory, markBulletinAsRead, deleteBulletin, getBulletinPermissions } from '../services/api';
 import { CATEGORIES, COLORS, ROLE_LABELS } from '../utils/constants';
@@ -21,6 +22,7 @@ export default function BulletinsScreen({ user, onLogout }) {
   const [refreshing, setRefreshing] = useState(false);
   const [readBulletins, setReadBulletins] = useState([]);
   const [allBulletins, setAllBulletins] = useState([]);
+  const [bulletinSearch, setBulletinSearch] = useState("");
 
   useEffect(() => {
     loadBulletins();
@@ -88,7 +90,6 @@ export default function BulletinsScreen({ user, onLogout }) {
     try {
       await markBulletinAsRead(user.id, bulletinId);
       setReadBulletins(prev => [...prev, bulletinId]);
-      // Refresh all bulletins to update indicators
       loadAllBulletins();
     } catch (error) {
       console.error('Error marking bulletin as read:', error);
@@ -120,7 +121,18 @@ export default function BulletinsScreen({ user, onLogout }) {
 
   const handleCategoryChange = (categoryId) => {
     setSelectedCategory(categoryId);
+    setBulletinSearch("");
   };
+
+  const filteredBulletins = bulletins.filter(b => {
+    if (!bulletinSearch) return true;
+    const query = bulletinSearch.toLowerCase();
+    return (
+      b.title.toLowerCase().includes(query) ||
+      b.body.toLowerCase().includes(query) ||
+      b.author_name.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <View style={styles.container}>
@@ -152,7 +164,26 @@ export default function BulletinsScreen({ user, onLogout }) {
           <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
         </TouchableOpacity>
       </View>
-      
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputWrapper}>
+          <Ionicons name="search-outline" size={18} color={COLORS.gray400} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search bulletins..."
+            placeholderTextColor={COLORS.gray400}
+            value={bulletinSearch}
+            onChangeText={setBulletinSearch}
+          />
+          {bulletinSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setBulletinSearch("")}>
+              <Ionicons name="close-circle" size={18} color={COLORS.gray400} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Category Tabs */}
       <View style={styles.categoryTabsContainer}>
         <ScrollView
@@ -161,36 +192,36 @@ export default function BulletinsScreen({ user, onLogout }) {
           style={styles.categoryTabs}
           contentContainerStyle={styles.categoryTabsContent}
         >
-        {CATEGORIES.map(category => {
-          const hasUnread = allBulletins.some(
-            b => b.category === category.id && !readBulletins.includes(b.id)
-          );
-          
-          return (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.tab,
-                selectedCategory === category.id && styles.tabActive,
-              ]}
-              onPress={() => handleCategoryChange(category.id)}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text
-                  style={[
-                    styles.tabText,
-                    selectedCategory === category.id && styles.tabTextActive,
-                  ]}
-                >
-                  {category.label}
-                </Text>
-                {hasUnread && (
-                  <View style={styles.categoryUnreadDot} />
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+          {CATEGORIES.map(category => {
+            const hasUnread = allBulletins.some(
+              b => b.category === category.id && !readBulletins.includes(b.id)
+            );
+            
+            return (
+              <TouchableOpacity
+                key={category.id}
+                style={[
+                  styles.tab,
+                  selectedCategory === category.id && styles.tabActive,
+                ]}
+                onPress={() => handleCategoryChange(category.id)}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text
+                    style={[
+                      styles.tabText,
+                      selectedCategory === category.id && styles.tabTextActive,
+                    ]}
+                  >
+                    {category.label}
+                  </Text>
+                  {hasUnread && (
+                    <View style={styles.categoryUnreadDot} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -210,13 +241,15 @@ export default function BulletinsScreen({ user, onLogout }) {
             />
           }
         >
-          {bulletins.length === 0 ? (
+          {filteredBulletins.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="document-text-outline" size={64} color={COLORS.gray300} />
-              <Text style={styles.emptyText}>No bulletins</Text>
+              <Text style={styles.emptyText}>
+                {bulletinSearch ? 'No results found' : 'No bulletins'}
+              </Text>
             </View>
           ) : (
-            bulletins.map((bulletin, index) => (
+            filteredBulletins.map((bulletin, index) => (
               <TouchableOpacity
                 key={bulletin.id}
                 style={[
@@ -264,6 +297,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  userHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.gray900,
+    marginBottom: 2,
+  },
+  userRole: {
+    fontSize: 12,
+    color: COLORS.gray500,
+  },
+  logoutButton: {
+    padding: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.gray900,
+    padding: 0,
+  },
   categoryTabsContainer: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
@@ -276,20 +360,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  tabsContainer: {
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
-  },
   categoryUnreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.warning,
     marginLeft: 6,
-  },
-  tabsContent: {
-    paddingHorizontal: 8,
   },
   tab: {
     paddingHorizontal: 16,
@@ -382,37 +458,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.gray400,
     marginTop: 16,
-  },
-  userHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.gray900,
-    marginBottom: 2,
-  },
-  userRole: {
-    fontSize: 12,
-    color: COLORS.gray500,
-  },
-  logoutButton: {
-    padding: 8,
-  },
-  categoryUnreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.warning,
-    marginLeft: 6,
   },
 });

@@ -980,4 +980,153 @@ router.get('/admin/export-sql', async (req, res) => {
   }
 });
 
+// --- File Library ---
+
+// Get all files (optionally filtered by category)
+router.get('/files', async (req, res) => {
+  const { category, userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+
+  try {
+    let query = `
+      SELECT f.*, u.name as uploaded_by_name
+      FROM file_library f
+      LEFT JOIN users u ON f.uploaded_by = u.id
+    `;
+    const params = [];
+
+    if (category && category !== 'all') {
+      query += ' WHERE f.category = $1';
+      params.push(category);
+    }
+
+    query += ' ORDER BY f.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching files:', err);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// Upload a file to the library
+router.post('/files', upload.single('file'), async (req, res) => {
+  const { title, description, category, userId } = req.body;
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  if (!title || !userId) {
+    return res.status(400).json({ error: 'Title and userId required' });
+  }
+
+  try {
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO file_library 
+        (title, description, filename, original_filename, file_path, file_size, mime_type, category, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
+      [
+        title,
+        description || '',
+        req.file.filename,
+        req.file.originalname,
+        req.file.path,
+        req.file.size,
+        req.file.mimetype,
+        category || 'general',
+        parseInt(userId)
+      ]
+    );
+
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error('Error uploading file:', err);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
+// Download a file from the library
+router.get('/files/:id/download', async (req, res) => {
+  const fileId = parseInt(req.params.id);
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM file_library WHERE id = $1',
+      [fileId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const file = result.rows[0];
+    const filePath = path.resolve(file.file_path);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Error downloading file:', err);
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// Delete a file from the library
+router.delete('/files/:id', async (req, res) => {
+  const fileId = parseInt(req.params.id);
+  const { userId } = req.body;
+
+  try {
+    const user = await getUserById(parseInt(userId));
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userRoles = user.roles || [user.role];
+    const isAdminOrHigher = userRoles.includes('admin') || userRoles.includes('super_user');
+
+    const fileResult = await pool.query(
+      'SELECT * FROM file_library WHERE id = $1',
+      [fileId]
+    );
+
+    if (fileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const file = fileResult.rows[0];
+
+    // Only allow admin or the uploader to delete
+    if (!isAdminOrHigher && file.uploaded_by !== parseInt(userId)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Delete file from disk
+    const filePath = path.resolve(file.file_path);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await pool.query('DELETE FROM file_library WHERE id = $1', [fileId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting file:', err);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
 module.exports = router;

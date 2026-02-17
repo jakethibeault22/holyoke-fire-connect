@@ -135,6 +135,23 @@ await client.query(`
       )
     `);
 	
+	// File library table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS file_library (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        filename VARCHAR(255) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        mime_type VARCHAR(100),
+        category VARCHAR(50) DEFAULT 'general',
+        uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+	
     console.log('Tables created successfully');
 	
 	
