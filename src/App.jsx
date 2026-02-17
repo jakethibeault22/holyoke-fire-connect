@@ -2819,6 +2819,11 @@ disabled={isSaving}
             </div>
           </div>
         )}
+                ))
+              )}
+            </div>
+          </div>
+        )}
       
 	  {/* Mobile Bottom Navigation */}
 <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
