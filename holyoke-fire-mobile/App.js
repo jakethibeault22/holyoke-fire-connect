@@ -9,12 +9,12 @@ import { registerForPushNotificationsAsync, savePushToken, removePushToken } fro
 import { getStoredUser, clearUser, API_URL } from './src/services/api';
 import { COLORS } from './src/utils/constants';
 import axios from 'axios';
-
 import LoginScreen from './src/screens/LoginScreen';
 import BulletinsScreen from './src/screens/BulletinsScreen';
 import InboxScreen from './src/screens/InboxScreen';
 import ComposeScreen from './src/screens/ComposeScreen';
 import AdminScreen from './src/screens/AdminScreen';
+import FilesScreen from './src/screens/FilesScreen';
 import UserDetailScreen from './src/screens/UserDetailScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
@@ -148,6 +148,9 @@ export default function App() {
     } catch (error) {
       console.error('Error loading notification counts:', error);
     }
+	// Update app icon badge
+    const totalUnread = unreadBulletins + unreadMessages;
+    await Notifications.setBadgeCountAsync(totalUnread);
   };
 
   const handleLogin = (userData) => {
@@ -159,10 +162,11 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (user?.id) {
-      await removePushToken(user.id);
-    }
+    // if (user?.id) {
+    //   await removePushToken(user.id);
+    // }
     await clearUser();
+    await Notifications.setBadgeCountAsync(0); // Clear badge on logout
     setUser(null);
   };
 
@@ -235,6 +239,8 @@ export default function App() {
               iconName = focused ? 'mail' : 'mail-outline';
             } else if (route.name === 'Compose') {
               iconName = focused ? 'add-circle' : 'add-circle-outline';
+            } else if (route.name === 'Files') {
+              iconName = focused ? 'folder' : 'folder-outline';
             } else if (route.name === 'Admin') {
               iconName = focused ? 'people' : 'people-outline';
             }
@@ -274,6 +280,13 @@ export default function App() {
           options={{ title: 'New Message' }}
         >
           {props => <ComposeScreen {...props} user={user} />}
+        </Tab.Screen>
+
+        <Tab.Screen 
+          name="Files"
+          options={{ title: 'Files' }}
+        >
+          {props => <FilesScreen {...props} user={user} />}
         </Tab.Screen>
 
         {isAdmin && (

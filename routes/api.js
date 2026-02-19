@@ -60,7 +60,7 @@ const requireAuth = (req, res, next) => {
   }
   
   // Skip auth for POST routes with file uploads (they handle auth after multer processes FormData)
-  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path.startsWith('/admin/users'))) {
+  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path === '/files' || req.path.startsWith('/admin/users'))) {
     return next();
   }
   
