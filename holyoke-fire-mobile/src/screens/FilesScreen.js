@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   TextInput,
+  Image,
 } from 'react-native';
 import { getFiles, deleteFile, downloadFile, uploadFile } from '../services/fileApi';
 import { COLORS } from '../utils/constants';
@@ -148,6 +149,11 @@ export default function FilesScreen({ user }) {
       setUploading(false);
     }
   };
+  
+  const isImageFile = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+  };
 
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
@@ -241,11 +247,18 @@ export default function FilesScreen({ user }) {
               <View key={file.id} style={styles.fileCard}>
                 <View style={styles.fileHeader}>
                   <View style={styles.fileIconContainer}>
-                    <Ionicons
-                      name={getFileIcon(file.original_filename)}
-                      size={32}
-                      color={COLORS.primary}
-                    />
+                    {isImageFile(file.original_filename) ? (
+                      <Image
+                        source={{ uri: downloadFile(file.id) }}
+                        style={styles.thumbnail}
+                      />
+                    ) : (
+                      <Ionicons
+                        name={getFileIcon(file.original_filename)}
+                        size={32}
+                        color={COLORS.primary}
+                      />
+                    )}
                   </View>
                   <View style={styles.fileInfo}>
                     <Text style={styles.fileTitle}>{file.title}</Text>
@@ -691,4 +704,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
+  
+  thumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  
 });

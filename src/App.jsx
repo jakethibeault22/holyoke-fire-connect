@@ -2863,7 +2863,15 @@ disabled={isSaving}
                     <CardContent>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
+                          {isImageFile(file.original_filename) ? (
+                            <img
+                              src={`/api/files/${file.id}/download`}
+                              alt={file.title}
+                              className="w-16 h-16 object-cover rounded border"
+                            />
+                          ) : (
+                            <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
+                          )}
                           <div>
                             <h3 className="font-semibold text-gray-900">{file.title}</h3>
                             <p className="text-xs text-gray-500">{file.original_filename}</p>
