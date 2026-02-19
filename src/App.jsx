@@ -92,7 +92,6 @@ export default function App() {
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
   const [uploadCategory, setUploadCategory] = useState('general');
-  const [uploadFile, setUploadFile] = useState(null);
   const [bulletinTitle, setBulletinTitle] = useState("");
   const [bulletinBody, setBulletinBody] = useState("");
   const [bulletinFiles, setBulletinFiles] = useState([]);
@@ -125,13 +124,7 @@ export default function App() {
   const [approvingUser, setApprovingUser] = useState(null);
   const [assignedRole, setAssignedRole] = useState("firefighter");
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [files, setFiles] = useState([]);
-  const [fileCategory, setFileCategory] = useState("all");
-  const [showUploadForm, setShowUploadForm] = useState(false);
-  const [uploadTitle, setUploadTitle] = useState("");
-  const [uploadDescription, setUploadDescription] = useState("");
   const [uploadFile, setUploadFile] = useState(null);
-  const [uploadCategory, setUploadCategory] = useState("general");
   const messagesEndRef = useRef(null);
   const [visibleCategories, setVisibleCategories] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
