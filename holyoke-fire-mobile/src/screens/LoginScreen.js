@@ -152,6 +152,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: COLORS.gray200,
+    color: COLORS.gray900,
   },
   button: {
     width: '100%',
