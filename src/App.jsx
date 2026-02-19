@@ -86,7 +86,13 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [showBulletinForm, setShowBulletinForm] = useState(false);
-  
+  const [files, setFiles] = useState([]);
+  const [fileCategory, setFileCategory] = useState('all');
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('general');
+  const [uploadFile, setUploadFile] = useState(null);
   const [bulletinTitle, setBulletinTitle] = useState("");
   const [bulletinBody, setBulletinBody] = useState("");
   const [bulletinFiles, setBulletinFiles] = useState([]);
@@ -199,6 +205,12 @@ useEffect(() => {
     messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }
 }, [threadMessages, selectedThread]);
+
+useEffect(() => {
+    if (user && view === 'files') {
+      fetchFiles();
+    }
+  }, [user, view, fileCategory]);
 
 // Auto-mark messages as read when viewing a thread (only messages FROM others)
 useEffect(() => {
@@ -706,6 +718,75 @@ const fetchUsers = async () => {
     setUsers([]);
   }
 };
+
+// Files functions
+  const fetchFiles = async () => {
+    try {
+      const url = fileCategory === 'all' 
+        ? `/api/files?userId=${user.id}`
+        : `/api/files?userId=${user.id}&category=${fileCategory}`;
+      
+      const res = await fetch(url);
+      const data = await res.json();
+      setFiles(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching files:', err);
+      setFiles([]);
+    }
+  };
+
+  const handleUploadFile = async () => {
+    if (!uploadTitle.trim() || !uploadFile) {
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('userId', user.id);
+      formData.append('title', uploadTitle);
+      formData.append('description', uploadDescription);
+      formData.append('category', uploadCategory);
+      formData.append('file', uploadFile);
+
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setUploadTitle('');
+        setUploadDescription('');
+        setUploadFile(null);
+        setShowUploadForm(false);
+        fetchFiles();
+        alert('File uploaded successfully');
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      alert('Failed to upload file');
+    }
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    if (!confirm('Delete this file?')) return;
+
+    try {
+      const res = await fetch(`/api/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error('Error deleting file:', err);
+      alert('Failed to delete file');
+    }
+  };
   
 const handlePostBulletin = async () => {
   if (!bulletinTitle.trim() || !bulletinBody.trim()) return;
