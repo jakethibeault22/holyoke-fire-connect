@@ -1424,6 +1424,16 @@ if (!user) {
   <span className="text-lg">New Message</span>
 </button>
 
+<button
+  onClick={() => setView("files")}
+  className={`w-full flex items-center gap-3 px-2 py-3 rounded transition text-left ${
+    view === "files" ? "text-white bg-red-700" : "text-gray-300 hover:text-white hover:bg-red-700"
+  }`}
+>
+  <FileText className="h-5 w-5" />
+  <span className="text-lg">Files</span>
+</button>
+
 {(user.role === 'admin' || user.role === 'super_user' || user.roles?.includes('admin') || user.roles?.includes('super_user')) && (
   <div className="mt-4">
     <button
