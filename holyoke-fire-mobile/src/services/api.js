@@ -55,6 +55,30 @@ export const getBulletinsByCategory = async (category, userId) => {
   return response.data;
 };
 
+export const postBulletin = async (userId, title, body, category, files = []) => {
+  const formData = new FormData();
+  formData.append('userId', userId);
+  formData.append('title', title);
+  formData.append('body', body);
+  formData.append('category', category);
+  
+  // Add files if any
+  files.forEach((file) => {
+    formData.append('files', {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType || 'application/octet-stream'
+    });
+  });
+
+  const response = await axios.post(`${API_URL}/bulletins`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
 export const getAllBulletins = async (userId) => {
   const response = await api.get(`/bulletins/all?userId=${userId}`);
   return response.data;

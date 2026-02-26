@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "f891c68f-6374-4913-808e-cc03aabd9177"
+      }
+    },
+    "android": {
+      "package": "com.jake.thibeault22.holyokefireconnect"
+    }
+  }
+}
