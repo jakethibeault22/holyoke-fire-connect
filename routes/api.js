@@ -110,11 +110,6 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
-
 // Public registration (no auth required)
 router.post('/register', async (req, res) => {
   const { email, name, username, password } = req.body;
