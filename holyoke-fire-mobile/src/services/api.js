@@ -89,15 +89,6 @@ export const getBulletinPermissions = async (category, userId) => {
   return response.data;
 };
 
-export const postBulletin = async (formData) => {
-  const response = await api.post('/bulletins', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
-
 export const deleteBulletin = async (bulletinId, userId) => {
   const response = await api.delete(`/bulletins/${bulletinId}`, {
     data: { userId },
@@ -236,6 +227,11 @@ export const updateUser = async (userId, email, name, username, roles, requestin
     roles,
     requestingUserId,
   });
+  return response.data;
+};
+
+export const getBulletinAttachments = async (bulletinId) => {
+  const response = await api.get(`/bulletins/${bulletinId}/attachments`);
   return response.data;
 };
 

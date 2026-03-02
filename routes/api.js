@@ -87,18 +87,27 @@ const requireAuth = (req, res, next) => {
 router.use(requireAuth);
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.resolve(__dirname, '../../data/uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
-    cb(null, uniqueName);
-  }
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => ({
+    folder: 'holyoke-fire-connect',
+    resource_type: 'auto',
+    public_id: Date.now() + '-' + Math.round(Math.random() * 1E9),
+  }),
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 const upload = multer({ 
@@ -611,14 +620,7 @@ router.get('/bulletins/:bulletinId/attachments/:attachmentId', async (req, res) 
     }
     
     const attachment = result.rows[0];
-    const filePath = path.resolve(attachment.file_path);
-    
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found on disk:', filePath);
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
-    
-    res.sendFile(filePath);
+    return res.redirect(attachment.file_path);
   } catch (err) {
     console.error('Error retrieving attachment:', err);
     res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
@@ -787,14 +789,7 @@ router.get('/messages/:messageId/attachments/:attachmentId', async (req, res) =>
     }
     
     const attachment = result.rows[0];
-    const filePath = path.resolve(attachment.file_path);
-    
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found on disk:', filePath);
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
-    
-    res.sendFile(filePath);
+    return res.redirect(attachment.file_path);;
   } catch (err) {
     console.error('Error retrieving attachment:', err);
     res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
