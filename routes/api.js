@@ -532,6 +532,7 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
     
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
+        console.log('Cloudinary file object:', JSON.stringify(file, null, 2));
         await addAttachment(
           file.filename,
           file.originalname,
