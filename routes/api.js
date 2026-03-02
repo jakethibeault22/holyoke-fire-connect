@@ -98,11 +98,16 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: async (req, file) => ({
-    folder: 'holyoke-fire-connect',
-    resource_type: 'auto',
-    public_id: Date.now() + '-' + Math.round(Math.random() * 1E9),
-  }),
+  params: async (req, file) => {
+    const isImage = file.mimetype.startsWith('image/');
+    const isVideo = file.mimetype.startsWith('video/');
+    return {
+      folder: 'holyoke-fire-connect',
+      resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
+      public_id: Date.now() + '-' + Math.round(Math.random() * 1E9),
+      format: isImage ? file.mimetype.split('/')[1] : undefined,
+    };
+  },
 });
 
 const upload = multer({ 
@@ -531,7 +536,7 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
           file.filename,
           file.originalname,
           file.path,
-          file.size,
+          file.bytes || file.size || 0,
           file.mimetype,
           bulletinId,
           null
@@ -693,7 +698,8 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
           file.filename,
           file.originalname,
           file.path,
-          file.size,
+          file.path,
+          file.bytes || file.size || 0,
           file.mimetype,
           null,
           messageId
