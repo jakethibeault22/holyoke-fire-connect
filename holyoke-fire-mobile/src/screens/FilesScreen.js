@@ -64,11 +64,20 @@ export default function FilesScreen({ user }) {
   const handleDownload = async (fileId, fileName) => {
   try {
     const file = files.find(f => f.id === fileId);
-    const url = file?.file_path;
+    let url = file?.file_path;
 
     if (!url || typeof url !== 'string') {
       Alert.alert('Error', 'File URL not available');
       return;
+    }
+
+    // Get the original file extension
+    const ext = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
+
+    // For Cloudinary raw files, append the extension as a query param so
+    // the browser/OS knows how to handle it
+    if (ext && !url.includes('.' + ext)) {
+      url = `${url}?response-content-disposition=attachment%3Bfilename%3D${encodeURIComponent(file.original_filename || fileName)}`;
     }
 
     const supported = await Linking.canOpenURL(url);
