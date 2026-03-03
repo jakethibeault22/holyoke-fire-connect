@@ -104,12 +104,13 @@ export default function InboxScreen({ user, onRefresh }) {
   };
 
   const fetchMessageAttachments = async (messageId) => {
-    try {
-      const res = await fetch(`${API_URL}/messages/${messageId}/attachments`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setMessageAttachments(prev => ({ ...prev, [messageId]: data }));
-      }
+  try {
+    const res = await fetch(`${API_URL}/messages/${messageId}/attachments`);
+    const data = await res.json();
+    console.log('Attachment data:', JSON.stringify(data));
+    if (Array.isArray(data) && data.length > 0) {
+      setMessageAttachments(prev => ({ ...prev, [messageId]: data }));
+    }
     } catch (error) {
       console.error('Error fetching attachments:', error);
     }
