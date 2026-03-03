@@ -2058,7 +2058,6 @@ if (!user) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-              <a
                 <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
                  <Download className="h-4 w-4" />
                 </button>
@@ -2074,7 +2073,6 @@ if (!user) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-              <a
                 <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
                   <Download className="h-4 w-4" />
                 </button>
@@ -2087,7 +2085,6 @@ if (!user) {
             />
           </div>
         ) : (
-          <a
             <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`flex items-center gap-2 text-xs ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
              <Download className="h-3 w-3" />
              {att.original_filename || att.filename}
