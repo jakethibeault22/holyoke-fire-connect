@@ -497,8 +497,10 @@ export default function BulletinsScreen({ user, onLogout }) {
                     const name = attachment.original_filename || attachment.filename || '';
                     if (!name) return null;
 
-                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
-                    const isPDF = /\.pdf$/i.test(name);
+                    const isImage = attachment.mime_type?.startsWith('image/') ||
+                        /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
+                    const isPDF = attachment.mime_type === 'application/pdf' ||
+                        /\.pdf$/i.test(name);
 
                     const fileUrl =
                       API_URL && viewingBulletin?.id && attachment?.id
