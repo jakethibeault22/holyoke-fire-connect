@@ -240,6 +240,7 @@ const handleFileDownload = async (fileUrl, filename) => {
       <View style={styles.attachmentsContainer}>
         {attachments.map(att => {
           const fileUrl = att.file_path;
+console.log('att object:', JSON.stringify(att));
 
           if (isImageFile(att)) {
             return (

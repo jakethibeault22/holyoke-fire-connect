@@ -62,20 +62,26 @@ export default function FilesScreen({ user }) {
   }, [selectedCategory]);
 
   const handleDownload = async (fileId, fileName) => {
-    try {
-      const url = downloadFile(fileId);
-      const supported = await Linking.canOpenURL(url);
-      
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Error', 'Cannot open this file type');
-      }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      Alert.alert('Error', 'Failed to download file');
+  try {
+    const file = files.find(f => f.id === fileId);
+    const url = file?.file_path;
+
+    if (!url || typeof url !== 'string') {
+      Alert.alert('Error', 'File URL not available');
+      return;
     }
-  };
+
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Error', 'Cannot open this file type');
+    }
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    Alert.alert('Error', 'Failed to download file');
+  }
+};
 
   const handleDelete = async (fileId, fileName) => {
     Alert.alert(
@@ -249,7 +255,7 @@ export default function FilesScreen({ user }) {
                   <View style={styles.fileIconContainer}>
                     {isImageFile(file.original_filename) ? (
                       <Image
-                        source={{ uri: downloadFile(file.id) }}
+                        source={{ uri: file.file_path }}
                         style={styles.thumbnail}
                       />
                     ) : (
