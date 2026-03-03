@@ -1151,6 +1151,18 @@ const handleDeleteUser = async (userId) => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
+  
+  const handleDownload = async (e, url, filename) => {
+    e.stopPropagation();
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+  };
 
   const isImageFile = (filename, mimeType) => {
     if (mimeType?.startsWith('image/')) return true;
@@ -1818,13 +1830,9 @@ if (!user) {
                       {getFileIcon(att.filename)}
                       <span className="text-sm font-medium">{att.filename}</span>
                       
-                      <a  href={`/api/bulletins/${b.id}/attachments/${att.id}`}
-                        download
-                        onClick={(e) => e.stopPropagation()}
-                        className="ml-auto"
-                      >
+                      <button onClick={(e) => handleDownload(e, `/api/bulletins/${b.id}/attachments/${att.id}`, att.original_filename || att.filename)} className="ml-auto">
                         <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
-                      </a>
+                      </button>
                     </div>
                     <img
                       src={`/api/bulletins/${b.id}/attachments/${att.id}`}
@@ -1839,13 +1847,9 @@ if (!user) {
                       {getFileIcon(att.filename)}
                       <span className="text-sm font-medium">{att.filename}</span>
                       
-                     <a   href={`/api/bulletins/${b.id}/attachments/${att.id}`}
-                        download
-                        onClick={(e) => e.stopPropagation()}
-                        className="ml-auto"
-                      >
-                        <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
-                      </a>
+                     <button onClick={(e) => handleDownload(e, `/api/bulletins/${b.id}/attachments/${att.id}`, att.original_filename || att.filename)} className="ml-auto">
+                      <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
+                     </button>
                     </div>
                     <iframe
                       src={`/api/bulletins/${b.id}/attachments/${att.id}`}
@@ -1856,16 +1860,11 @@ if (!user) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    {getFileIcon(att.filename)}
-                    
-                     <a href={`/api/bulletins/${b.id}/attachments/${att.id}`}
-                      download
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      {att.filename}
-                    </a>
-                    <Download className="h-6 w-6" />
+                   {getFileIcon(att.filename)}
+                    <span className="text-sm text-gray-700">{att.original_filename || att.filename}</span>
+                    <button onClick={(e) => handleDownload(e, `/api/bulletins/${b.id}/attachments/${att.id}`, att.original_filename || att.filename)} className="ml-auto">
+                     <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2060,12 +2059,9 @@ if (!user) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
               <a
-                href={`/api/messages/${msg.id}/attachments/${att.id}`}
-                download
-                className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
-              >
-                <Download className="h-4 w-4" />
-              </a>
+                <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+                  <Download className="h-4 w-4" />
+                </button>
             </div>
             <img
               src={`/api/messages/${msg.id}/attachments/${att.id}`}
@@ -2079,12 +2075,9 @@ if (!user) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
               <a
-                href={`/api/messages/${msg.id}/attachments/${att.id}`}
-                download
-                className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}
-              >
-                <Download className="h-4 w-4" />
-              </a>
+                <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+                  <Download className="h-4 w-4" />
+                </button>
             </div>
             <iframe
               src={`/api/messages/${msg.id}/attachments/${att.id}`}
@@ -2095,15 +2088,10 @@ if (!user) {
           </div>
         ) : (
           <a
-            href={`/api/messages/${msg.id}/attachments/${att.id}`}
-            download
-            className={`flex items-center gap-2 text-xs ${
-              isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'
-            }`}
-          >
-            <Download className="h-3 w-3" />
-            {att.filename}
-          </a>
+            <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`flex items-center gap-2 text-xs ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+             <Download className="h-3 w-3" />
+             {att.original_filename || att.filename}
+            </button>
         )}
       </div>
     ))}
