@@ -621,11 +621,12 @@ router.get('/bulletins/:bulletinId/attachments/:attachmentId', async (req, res) 
     }
     
     const attachment = result.rows[0];
-    return res.redirect(attachment.file_path);
-  } catch (err) {
-    console.error('Error retrieving attachment:', err);
-    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
-  }
+// Return URL directly so clients can open Cloudinary links without redirect issues
+return res.json({ url: attachment.file_path, filename: attachment.original_filename });
+} catch (err) {
+  console.error('Error retrieving attachment:', err);
+  res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
+}
 });
 
 // Check if user can view a category
@@ -790,11 +791,11 @@ router.get('/messages/:messageId/attachments/:attachmentId', async (req, res) =>
     }
     
     const attachment = result.rows[0];
-    return res.redirect(attachment.file_path);;
-  } catch (err) {
-    console.error('Error retrieving attachment:', err);
-    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
-  }
+return res.json({ url: attachment.file_path, filename: attachment.original_filename });
+} catch (err) {
+  console.error('Error retrieving attachment:', err);
+  res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
+}
 });
 
 // Delete attachment
@@ -1067,14 +1068,12 @@ router.get('/files/:id/download', async (req, res) => {
     }
 
     const file = result.rows[0];
-    const filePath = path.resolve(file.file_path);
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
+if (file.file_path.startsWith('http')) {
+  return res.json({ url: file.file_path, filename: file.original_filename });
+}
 
-    res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
-    res.sendFile(filePath);
+return res.status(404).json({ error: 'File not found' });
   } catch (err) {
     console.error('Error downloading file:', err);
     res.status(500).json({ error: 'Failed to download file' });

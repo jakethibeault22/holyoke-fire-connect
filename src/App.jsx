@@ -913,6 +913,8 @@ const handleSendMessage = async () => {
       setMessageFiles([]);
       setReplyingTo(null);
       
+      alert('Message sent successfully!');
+      setView('inbox');
       fetchInbox();
       
       if (currentThreadId) {

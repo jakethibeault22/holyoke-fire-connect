@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Image,
+  Modal,
+  Linking,
 } from 'react-native';
 import {
   getInbox,
@@ -16,23 +19,41 @@ import {
   sendMessage,
   markMessageAsRead,
   deleteMessage,
+  API_URL,
 } from '../services/api';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 export default function InboxScreen({ user, onRefresh }) {
   const [inbox, setInbox] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [messageSearch, setMessageSearch] = useState("");
   const [threadMessages, setThreadMessages] = useState([]);
+  const [messageAttachments, setMessageAttachments] = useState({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [quickReply, setQuickReply] = useState('');
   const [sending, setSending] = useState(false);
   const [readMessages, setReadMessages] = useState([]);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const scrollViewRef = useRef(null);
+  const selectedThreadRef = useRef(selectedThread);
+
+  useEffect(() => {
+    selectedThreadRef.current = selectedThread;
+  }, [selectedThread]);
 
   useEffect(() => {
     loadInbox();
+    const interval = setInterval(() => {
+      loadInbox(true);
+      if (selectedThreadRef.current) {
+        loadThreadMessages(selectedThreadRef.current, true);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -41,43 +62,61 @@ export default function InboxScreen({ user, onRefresh }) {
     }
   }, [selectedThread]);
 
-  const loadInbox = async () => {
-    setLoading(true);
+  const loadInbox = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await getInbox(user.id);
       setInbox(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading inbox:', error);
-      Alert.alert('Error', 'Failed to load messages. Please try again.');
+      if (!silent) Alert.alert('Error', 'Failed to load messages. Please try again.');
       setInbox([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const loadThreadMessages = async (threadId) => {
+  const loadThreadMessages = async (threadId, silent = false) => {
     try {
       const data = await getThreadMessages(threadId, user.id);
-      setThreadMessages(Array.isArray(data) ? data : []);
+      const msgs = Array.isArray(data) ? data : [];
+      setThreadMessages(msgs);
 
-      // Mark unread messages as read
-      const unreadInThread = data.filter(
+      for (const msg of msgs) {
+        fetchMessageAttachments(msg.id);
+      }
+
+      const unread = msgs.filter(
         msg => !readMessages.includes(msg.id) && msg.sender_id !== user.id
       );
-
-      for (const msg of unreadInThread) {
+      for (const msg of unread) {
         await handleMarkAsRead(msg.id);
       }
+
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: !silent });
+      }, 100);
     } catch (error) {
       console.error('Error loading thread:', error);
       setThreadMessages([]);
     }
   };
 
+  const fetchMessageAttachments = async (messageId) => {
+    try {
+      const res = await fetch(`${API_URL}/messages/${messageId}/attachments`);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setMessageAttachments(prev => ({ ...prev, [messageId]: data }));
+      }
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+    }
+  };
+
   const handleMarkAsRead = async (messageId) => {
     if (readMessages.includes(messageId)) return;
-
     try {
       await markMessageAsRead(user.id, messageId);
       setReadMessages(prev => [...prev, messageId]);
@@ -118,7 +157,7 @@ export default function InboxScreen({ user, onRefresh }) {
 
       setQuickReply('');
       await loadThreadMessages(selectedThread);
-      await loadInbox();
+      await loadInbox(true);
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Error sending reply:', error);
@@ -156,6 +195,97 @@ export default function InboxScreen({ user, onRefresh }) {
     );
   };
 
+const handleFileDownload = async (fileUrl, filename) => {
+  try {
+    // For Cloudinary URLs, open directly in browser
+    if (fileUrl.startsWith('http')) {
+      const supported = await Linking.canOpenURL(fileUrl);
+      if (supported) {
+        await Linking.openURL(fileUrl);
+      } else {
+        Alert.alert('Error', 'Cannot open this file.');
+      }
+      return;
+    }
+
+    // Fallback for local files
+    const downloadDest = FileSystem.documentDirectory + filename;
+    const { uri } = await FileSystem.downloadAsync(fileUrl, downloadDest);
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri);
+    } else {
+      Alert.alert('Downloaded', `File saved to: ${uri}`);
+    }
+  } catch (error) {
+    console.error('Download error:', error);
+    Alert.alert('Error', 'Failed to open file.');
+  }
+};
+
+  const isImageFile = (att) =>
+    att.mime_type?.startsWith('image/') ||
+    /\.(jpg|jpeg|png|gif|webp)$/i.test(att.filename || '');
+
+  const isPDFFile = (att) =>
+    att.mime_type === 'application/pdf' ||
+    /\.pdf$/i.test(att.filename || '');
+
+  const renderAttachments = (messageId, isFromMe) => {
+    const attachments = messageAttachments[messageId];
+    if (!attachments || attachments.length === 0) return null;
+
+    return (
+      <View style={styles.attachmentsContainer}>
+        {attachments.map(att => {
+          const fileUrl = att.file_path;
+
+          if (isImageFile(att)) {
+            return (
+              <TouchableOpacity
+                key={att.id}
+                onPress={() => setFullscreenImage(fileUrl)}
+                activeOpacity={0.9}
+              >
+                <Image
+                  source={{ uri: fileUrl }}
+                  style={styles.attachmentImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            );
+          }
+
+          return (
+            <TouchableOpacity
+              key={att.id}
+              style={[
+                styles.fileAttachment,
+                isFromMe ? styles.fileAttachmentMe : styles.fileAttachmentOther,
+              ]}
+              onPress={() => handleFileDownload(fileUrl, att.original_filename || att.filename)}
+            >
+              <Ionicons
+                name={isPDFFile(att) ? 'document-text-outline' : 'attach-outline'}
+                size={20}
+                color={isFromMe ? 'rgba(255,255,255,0.9)' : COLORS.primary}
+              />
+              <Text
+                style={[
+                  styles.fileAttachmentName,
+                  isFromMe && styles.fileAttachmentNameMe,
+                ]}
+                numberOfLines={1}
+              >
+                {att.original_filename || att.filename}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
   const filteredInbox = inbox.filter(msg => {
     if (!messageSearch) return true;
     const query = messageSearch.toLowerCase();
@@ -167,10 +297,8 @@ export default function InboxScreen({ user, onRefresh }) {
   });
 
   if (!selectedThread) {
-    // Conversation List View
     return (
       <View style={styles.container}>
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputWrapper}>
             <Ionicons name="search-outline" size={18} color={COLORS.gray400} style={styles.searchIcon} />
@@ -214,7 +342,6 @@ export default function InboxScreen({ user, onRefresh }) {
             ) : (
               filteredInbox.map(msg => {
                 const unread = !readMessages.includes(msg.id) && msg.sender_id !== user.id;
-
                 return (
                   <TouchableOpacity
                     key={msg.id}
@@ -267,40 +394,59 @@ export default function InboxScreen({ user, onRefresh }) {
     );
   }
 
-  // Thread Messages View
   const currentThread = inbox.find(m => m.thread_id === selectedThread);
 
   return (
     <View style={styles.container}>
+
+      {/* Fullscreen Image Modal */}
+      <Modal
+        visible={!!fullscreenImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullscreenImage(null)}
+      >
+        <View style={styles.fullscreenModal}>
+          <TouchableOpacity
+            style={styles.fullscreenClose}
+            onPress={() => setFullscreenImage(null)}
+          >
+            <Ionicons name="close-circle" size={36} color="white" />
+          </TouchableOpacity>
+          {fullscreenImage && (
+            <Image
+              source={{ uri: fullscreenImage }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
       {/* Thread Header */}
       <View style={styles.threadHeader}>
-        <TouchableOpacity
-          onPress={() => setSelectedThread(null)}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => setSelectedThread(null)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
         </TouchableOpacity>
         <View style={styles.threadHeaderText}>
           <Text style={styles.threadSubject} numberOfLines={1}>
             {currentThread?.subject || 'Conversation'}
           </Text>
-          <Text style={styles.threadMeta}>
-            {threadMessages.length} messages
-          </Text>
+          <Text style={styles.threadMeta}>{threadMessages.length} messages</Text>
         </View>
-        <TouchableOpacity
-          onPress={handleDeleteThread}
-          style={styles.deleteButton}
-        >
+        <TouchableOpacity onPress={handleDeleteThread} style={styles.deleteButton}>
           <Ionicons name="trash-outline" size={24} color={COLORS.error} />
         </TouchableOpacity>
       </View>
 
       {/* Messages */}
-      <ScrollView style={styles.messagesContainer}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
+      >
         {threadMessages.map(msg => {
           const isFromMe = msg.sender_id === user.id;
-
           return (
             <View
               key={msg.id}
@@ -316,34 +462,20 @@ export default function InboxScreen({ user, onRefresh }) {
                 ]}
               >
                 <View style={styles.messageHeader}>
-                  <Text
-                    style={[
-                      styles.messageSender,
-                      isFromMe && styles.messageSenderMe,
-                    ]}
-                  >
+                  <Text style={[styles.messageSender, isFromMe && styles.messageSenderMe]}>
                     {isFromMe ? 'You' : msg.sender_name}
                   </Text>
-                  <Text
-                    style={[
-                      styles.messageTime,
-                      isFromMe && styles.messageTimeMe,
-                    ]}
-                  >
+                  <Text style={[styles.messageTime, isFromMe && styles.messageTimeMe]}>
                     {new Date(msg.created_at).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.messageBody,
-                    isFromMe && styles.messageBodyMe,
-                  ]}
-                >
+                <Text style={[styles.messageBody, isFromMe && styles.messageBodyMe]}>
                   {msg.body}
                 </Text>
+                {renderAttachments(msg.id, isFromMe)}
               </View>
             </View>
           );
@@ -361,10 +493,7 @@ export default function InboxScreen({ user, onRefresh }) {
           editable={!sending}
         />
         <TouchableOpacity
-          style={[
-            styles.sendButton,
-            (!quickReply.trim() || sending) && styles.sendButtonDisabled,
-          ]}
+          style={[styles.sendButton, (!quickReply.trim() || sending) && styles.sendButtonDisabled]}
           onPress={handleSendReply}
           disabled={!quickReply.trim() || sending}
         >
@@ -380,217 +509,77 @@ export default function InboxScreen({ user, onRefresh }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: COLORS.gray200,
   },
   searchInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: COLORS.gray200,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: COLORS.gray200,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: COLORS.gray900,
-    padding: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  conversationList: {
-    flex: 1,
-    padding: 16,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.gray900, padding: 0 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  conversationList: { flex: 1, padding: 16 },
   conversationCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
   },
-  conversationCardUnread: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  conversationTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  conversationSubject: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: COLORS.gray700,
-    flex: 1,
-  },
-  conversationSubjectUnread: {
-    fontWeight: '700',
-    color: COLORS.gray900,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.warning,
-    marginLeft: 8,
-  },
-  conversationSender: {
-    fontSize: 14,
-    color: COLORS.gray600,
-    marginBottom: 4,
-  },
-  conversationSenderUnread: {
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-  conversationDate: {
-    fontSize: 12,
-    color: COLORS.gray400,
-  },
-  emptyContainer: {
-    padding: 48,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.gray400,
-    marginTop: 16,
-  },
+  conversationCardUnread: { borderLeftWidth: 4, borderLeftColor: COLORS.warning },
+  conversationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  conversationTitleContainer: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  conversationSubject: { fontSize: 16, fontWeight: '500', color: COLORS.gray700, flex: 1 },
+  conversationSubjectUnread: { fontWeight: '700', color: COLORS.gray900 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.warning, marginLeft: 8 },
+  conversationSender: { fontSize: 14, color: COLORS.gray600, marginBottom: 4 },
+  conversationSenderUnread: { fontWeight: '600', color: COLORS.gray700 },
+  conversationDate: { fontSize: 12, color: COLORS.gray400 },
+  emptyContainer: { padding: 48, alignItems: 'center' },
+  emptyText: { fontSize: 16, color: COLORS.gray400, marginTop: 16 },
   threadHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.gray200,
   },
-  backButton: {
-    marginRight: 12,
-  },
-  threadHeaderText: {
-    flex: 1,
-  },
-  threadSubject: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.gray900,
-  },
-  threadMeta: {
-    fontSize: 12,
-    color: COLORS.gray500,
-    marginTop: 2,
-  },
-  deleteButton: {
-    marginLeft: 12,
-  },
-  messagesContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  messageBubbleContainer: {
-    marginBottom: 16,
-  },
-  messageBubbleContainerLeft: {
-    alignItems: 'flex-start',
-  },
-  messageBubbleContainerRight: {
-    alignItems: 'flex-end',
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    borderRadius: 16,
-    padding: 12,
-  },
-  messageBubbleMe: {
-    backgroundColor: COLORS.primary,
-  },
-  messageBubbleOther: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: COLORS.gray200,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  messageSender: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-  messageSenderMe: {
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  messageTime: {
-    fontSize: 10,
-    color: COLORS.gray400,
-    marginLeft: 8,
-  },
-  messageTimeMe: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  messageBody: {
-    fontSize: 14,
-    color: COLORS.gray700,
-    lineHeight: 20,
-  },
-  messageBodyMe: {
-    color: 'white',
-  },
+  backButton: { marginRight: 12 },
+  threadHeaderText: { flex: 1 },
+  threadSubject: { fontSize: 18, fontWeight: '600', color: COLORS.gray900 },
+  threadMeta: { fontSize: 12, color: COLORS.gray500, marginTop: 2 },
+  deleteButton: { marginLeft: 12 },
+  messagesContainer: { flex: 1, padding: 16 },
+  messageBubbleContainer: { marginBottom: 16 },
+  messageBubbleContainerLeft: { alignItems: 'flex-start' },
+  messageBubbleContainerRight: { alignItems: 'flex-end' },
+  messageBubble: { maxWidth: '80%', borderRadius: 16, padding: 12 },
+  messageBubbleMe: { backgroundColor: COLORS.primary },
+  messageBubbleOther: { backgroundColor: 'white', borderWidth: 1, borderColor: COLORS.gray200 },
+  messageHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  messageSender: { fontSize: 12, fontWeight: '600', color: COLORS.gray700 },
+  messageSenderMe: { color: 'rgba(255, 255, 255, 0.9)' },
+  messageTime: { fontSize: 10, color: COLORS.gray400, marginLeft: 8 },
+  messageTimeMe: { color: 'rgba(255, 255, 255, 0.7)' },
+  messageBody: { fontSize: 14, color: COLORS.gray700, lineHeight: 20 },
+  messageBodyMe: { color: 'white' },
+  attachmentsContainer: { marginTop: 8 },
+  attachmentImage: { width: 200, height: 150, borderRadius: 8, marginTop: 4 },
+  fileAttachment: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, marginTop: 4, gap: 6 },
+  fileAttachmentOther: { backgroundColor: 'rgba(0,0,0,0.05)' },
+  fileAttachmentMe: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  fileAttachmentName: { fontSize: 13, color: COLORS.primary, flex: 1 },
+  fileAttachmentNameMe: { color: 'rgba(255,255,255,0.9)' },
   replyContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.gray200,
+    flexDirection: 'row', padding: 16, backgroundColor: 'white',
+    borderTopWidth: 1, borderTopColor: COLORS.gray200,
   },
   replyInput: {
-    flex: 1,
-    backgroundColor: COLORS.gray100,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    maxHeight: 100,
+    flex: 1, backgroundColor: COLORS.gray100, borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 8, marginRight: 8, maxHeight: 100,
   },
-  sendButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: COLORS.gray300,
-  },
+  sendButton: { backgroundColor: COLORS.primary, borderRadius: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  sendButtonDisabled: { backgroundColor: COLORS.gray300 },
+  fullscreenModal: { flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' },
+  fullscreenClose: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
+  fullscreenImage: { width: '100%', height: '100%' },
 });
