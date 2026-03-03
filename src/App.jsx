@@ -1152,12 +1152,14 @@ const handleDeleteUser = async (userId) => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const isImageFile = (filename) => {
+  const isImageFile = (filename, mimeType) => {
+    if (mimeType?.startsWith('image/')) return true;
     const ext = filename.split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
   };
 
-  const isPDFFile = (filename) => {
+  const isPDFFile = (filename, mimeType) => {
+    if (mimeType === 'application/pdf') return true;
     return filename.toLowerCase().endsWith('.pdf');
   };
 
@@ -1810,7 +1812,7 @@ if (!user) {
           <div className="space-y-3">
             {bulletinAttachments[b.id].map(att => (
               <div key={att.id}>
-                {isImageFile(att.filename) ? (
+                {isImageFile(att.filename, att.mime_type) ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       {getFileIcon(att.filename)}
@@ -1831,7 +1833,7 @@ if (!user) {
                       style={{ maxHeight: '400px' }}
                     />
                   </div>
-                ) : isPDFFile(att.filename) ? (
+                ) : isPDFFile(att.filename, att.mime_type) ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       {getFileIcon(att.filename)}
@@ -2053,7 +2055,7 @@ if (!user) {
   <div className="mt-3 space-y-3 pt-3 border-t border-opacity-20" style={{borderColor: isFromMe ? 'white' : '#e5e7eb'}}>
     {messageAttachments[msg.id].map(att => (
       <div key={att.id}>
-        {isImageFile(att.filename) ? (
+        {isImageFile(att.filename, att.mime_type) ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
@@ -2072,7 +2074,7 @@ if (!user) {
               style={{ maxHeight: '300px' }}
             />
           </div>
-        ) : isPDFFile(att.filename) ? (
+        ) : isPDFFile(att.filename, att.mime_type) ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
