@@ -42,6 +42,7 @@ export default function BulletinsScreen({ user, onLogout }) {
   const [postFiles, setPostFiles] = useState([]);
   const [posting, setPosting] = useState(false);
   const [viewingBulletin, setViewingBulletin] = useState(null);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
 
   useEffect(() => {
     loadBulletins();
@@ -520,12 +521,15 @@ export default function BulletinsScreen({ user, onLogout }) {
 
                         {isImage ? (
                           fileUrl ? (
-                            <Image
-                              source={{ uri: fileUrl }}
-                              style={styles.attachmentImage}
-                              resizeMode="contain"
-                              onError={(e) => Alert.alert('Image Error', JSON.stringify(e.nativeEvent))}
-                            />
+                            <TouchableOpacity onPress={() => setFullscreenImage(fileUrl)} activeOpacity={0.9}>
+                              <Image
+                                source={{ uri: fileUrl }}
+                                style={styles.attachmentImage}
+                                resizeMode="contain"
+                                onError={(e) => Alert.alert('Image Error', JSON.stringify(e.nativeEvent))}
+                              />
+                              <Text style={{ textAlign: 'center', fontSize: 11, color: COLORS.gray500, marginTop: 4 }}>Tap to view fullscreen</Text>
+                            </TouchableOpacity>
                           ) : (
                             <Text style={{ color: COLORS.error }}>Image unavailable</Text>
                           )
@@ -555,6 +559,31 @@ export default function BulletinsScreen({ user, onLogout }) {
           </View>
         )}
       </Modal>
+      {/* Fullscreen Image Modal */}
+      <Modal
+        visible={fullscreenImage !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullscreenImage(null)}
+        statusBarTranslucent={true}
+      >
+        <View style={{ flex: 1, backgroundColor: 'black' }}>
+          <TouchableOpacity
+            onPress={() => setFullscreenImage(null)}
+            style={{ position: 'absolute', top: 48, right: 16, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 }}
+          >
+            <Ionicons name="close" size={28} color="white" />
+          </TouchableOpacity>
+          {fullscreenImage && (
+            <Image
+              source={{ uri: fullscreenImage }}
+              style={{ flex: 1 }}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
     </View>
   );
 }

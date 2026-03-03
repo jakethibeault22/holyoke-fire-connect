@@ -699,8 +699,7 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
           file.filename,
           file.originalname,
           file.path,
-          file.path,
-          file.bytes || file.size || 0,
+          file.size || file.bytes || 0,
           file.mimetype,
           null,
           messageId
