@@ -1147,15 +1147,4 @@ router.delete('/files/:id', async (req, res) => {
   }
 });
 
-// Temporary: clear file library
-router.delete('/admin/clear-file-library', async (req, res) => {
-  const { userId } = req.body;
-  const user = await getUserById(parseInt(userId));
-  if (!user || (user.role !== 'admin' && user.role !== 'super_user')) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  await pool.query('DELETE FROM file_library');
-  res.json({ success: true });
-});
-
 module.exports = router;
