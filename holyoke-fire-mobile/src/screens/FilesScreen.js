@@ -80,9 +80,12 @@ export default function FilesScreen({ user }) {
       url = `${url}?response-content-disposition=attachment%3Bfilename%3D${encodeURIComponent(file.original_filename || fileName)}`;
     }
 
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      await Linking.openURL(url);
+    // Append original filename so browser downloads with correct extension
+const downloadUrl = `${url}?fl_attachment=${encodeURIComponent(file.original_filename || fileName)}`;
+console.log('Opening URL:', downloadUrl);
+const supported = await Linking.canOpenURL(downloadUrl);
+if (supported) {
+  await Linking.openURL(downloadUrl);
     } else {
       Alert.alert('Error', 'Cannot open this file type');
     }
