@@ -107,6 +107,7 @@ return {
   folder: 'holyoke-fire-connect',
   resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
   public_id: `${baseName}.${ext}`,
+  access_mode: 'public',
 };
   },
 });
@@ -1072,20 +1073,28 @@ router.get('/files/:id/download', async (req, res) => {
 
     const file = result.rows[0];
 
-if (file.file_path.startsWith('http')) {
-      const axios = require('axios');
+    if (file.file_path.startsWith('http')) {
       try {
-        console.log('Proxying file from:', file.file_path);
-        const response = await axios.get(file.file_path, { responseType: 'stream' });
-        console.log('Cloudinary response status:', response.status);
-        console.log('Cloudinary content-type:', response.headers['content-type']);
-        res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
-        res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-        response.data.pipe(res);
-        return;
+        // Extract public_id from Cloudinary URL
+        const urlParts = file.file_path.split('/upload/');
+        if (urlParts.length < 2) {
+          return res.status(500).json({ error: 'Invalid Cloudinary URL format' });
+        }
+        // Strip version prefix (e.g. v1234567890/) if present
+        const publicIdWithExt = urlParts[1].replace(/^v\d+\//, '');
+
+        const signedUrl = cloudinary.url(publicIdWithExt, {
+          resource_type: 'raw',
+          sign_url: true,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          attachment: true,
+        });
+
+        console.log('Signed URL:', signedUrl);
+        return res.redirect(302, signedUrl);
       } catch (err) {
-        console.error('Proxy error:', err.message, err.response?.status);
-        return res.status(500).json({ error: 'Failed to proxy file', details: err.message });
+        console.error('Signed URL error:', err.message);
+        return res.status(500).json({ error: 'Failed to generate download URL', details: err.message });
       }
     }
 
