@@ -1013,6 +1013,8 @@ router.get('/files', async (req, res) => {
 
 // Upload a file to the library
 router.post('/files', upload.single('file'), async (req, res) => {
+  console.log('File upload hit. req.file:', JSON.stringify(req.file, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
   const { title, description, category, userId } = req.body;
 
   if (!req.file) {
