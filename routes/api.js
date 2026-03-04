@@ -1083,8 +1083,11 @@ router.get('/files/:id/download', async (req, res) => {
         }
         const publicIdWithExt = urlParts[1].replace(/^v\d+\//, '');
 
-        const signedUrl = cloudinary.url(publicIdWithExt, {
-  resource_type: 'raw',
+        const mimeType = file.mime_type || '';
+const resourceType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'raw';
+
+const signedUrl = cloudinary.url(publicIdWithExt, {
+  resource_type: resourceType,
   secure: true,
 });
 
