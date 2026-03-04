@@ -1083,14 +1083,13 @@ router.get('/files/:id/download', async (req, res) => {
         }
         const publicIdWithExt = urlParts[1].replace(/^v\d+\//, '');
 
-        const signedUrl = cloudinary.utils.private_download_url(publicIdWithExt, '', {
-          resource_type: 'raw',
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          attachment: true,
-        });
+        const signedUrl = cloudinary.url(publicIdWithExt, {
+  resource_type: 'raw',
+  secure: true,
+});
 
-        console.log('Private download URL:', signedUrl);
-        return res.json({ url: signedUrl, filename: file.original_filename });
+console.log('Direct URL:', signedUrl);
+return res.json({ url: signedUrl, filename: file.original_filename });
       } catch (err) {
         console.error('Signed URL error:', err.message);
         return res.status(500).json({ error: 'Failed to generate download URL', details: err.message });
