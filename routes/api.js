@@ -1072,6 +1072,8 @@ router.get('/files/:id/download', async (req, res) => {
     }
 
     const file = result.rows[0];
+	console.log('file_path from DB:', file.file_path);
+    console.log('mime_type:', file.mime_type);
 
     if (file.file_path.startsWith('http')) {
       try {
@@ -1144,6 +1146,17 @@ router.delete('/files/:id', async (req, res) => {
     console.error('Error deleting file:', err);
     res.status(500).json({ error: 'Failed to delete file' });
   }
+});
+
+// Temporary: clear file library
+router.delete('/admin/clear-file-library', async (req, res) => {
+  const { userId } = req.body;
+  const user = await getUserById(parseInt(userId));
+  if (!user || (user.role !== 'admin' && user.role !== 'super_user')) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  await pool.query('DELETE FROM file_library');
+  res.json({ success: true });
 });
 
 module.exports = router;
