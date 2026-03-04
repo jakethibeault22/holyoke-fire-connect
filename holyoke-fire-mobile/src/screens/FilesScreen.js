@@ -12,7 +12,7 @@ import {
   TextInput,
   Image,
 } from 'react-native';
-import { getFiles, deleteFile, downloadFile, uploadFile } from '../services/fileApi';
+import { getFiles, deleteFile, uploadFile } from '../services/fileApi';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -62,46 +62,35 @@ export default function FilesScreen({ user }) {
   }, [selectedCategory]);
 
   const handleDownload = async (fileId, fileName) => {
-  try {
-    const file = files.find(f => f.id === fileId);
-    let url = file?.file_path;
+    try {
+      const file = files.find(f => f.id === fileId);
+      const url = file?.file_path;
 
-    if (!url || typeof url !== 'string') {
-      Alert.alert('Error', 'File URL not available');
-      return;
+      if (!url || typeof url !== 'string') {
+        Alert.alert('Error', 'File URL not available');
+        return;
+      }
+
+      const fileExt = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
+
+      // Use Google Docs viewer for PDFs so Android can open them
+      let openUrl = url;
+      if (fileExt === 'pdf') {
+        openUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
+      }
+
+      console.log('Opening URL:', openUrl);
+      const supported = await Linking.canOpenURL(openUrl);
+      if (supported) {
+        await Linking.openURL(openUrl);
+      } else {
+        Alert.alert('Error', 'Cannot open this file type');
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      Alert.alert('Error', 'Failed to download file');
     }
-
-    // Get the original file extension
-    const ext = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
-
-    // For Cloudinary raw files, append the extension as a query param so
-    // the browser/OS knows how to handle it
-    if (ext && !url.includes('.' + ext)) {
-      url = `${url}?response-content-disposition=attachment%3Bfilename%3D${encodeURIComponent(file.original_filename || fileName)}`;
-    }
-
-    // Append original filename so browser downloads with correct extension
-console.log('Opening URL:', url);
-const ext = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
-
-let openUrl = url;
-if (ext === 'pdf') {
-  // Use Google Docs viewer for PDFs on mobile
-  openUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
-}
-
-console.log('Final URL:', openUrl);
-const supported = await Linking.canOpenURL(openUrl);
-if (supported) {
-  await Linking.openURL(openUrl);
-} else {
-  Alert.alert('Error', 'Cannot open this file type');
-}
-  } catch (error) {
-    console.error('Error downloading file:', error);
-    Alert.alert('Error', 'Failed to download file');
-  }
-};
+  };
 
   const handleDelete = async (fileId, fileName) => {
     Alert.alert(
@@ -175,7 +164,7 @@ if (supported) {
       setUploading(false);
     }
   };
-  
+
   const isImageFile = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
@@ -199,8 +188,8 @@ if (supported) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const isAdmin = user.role === 'admin' || user.role === 'super_user' || 
-                  user.roles?.includes('admin') || user.roles?.includes('super_user');
+  const isAdmin = user.role === 'admin' || user.role === 'super_user' ||
+    user.roles?.includes('admin') || user.roles?.includes('super_user');
 
   return (
     <View style={styles.container}>
@@ -305,7 +294,7 @@ if (supported) {
                     </Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.fileActions}>
                   <TouchableOpacity
                     style={styles.downloadButton}
@@ -314,7 +303,7 @@ if (supported) {
                     <Ionicons name="download-outline" size={20} color="white" />
                     <Text style={styles.downloadButtonText}>Download</Text>
                   </TouchableOpacity>
-                  
+
                   {(isAdmin || file.uploaded_by === user.id) && (
                     <TouchableOpacity
                       style={styles.deleteButton}
@@ -730,7 +719,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
-  
   thumbnail: {
     width: 64,
     height: 64,
@@ -738,5 +726,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.gray200,
   },
-  
 });
