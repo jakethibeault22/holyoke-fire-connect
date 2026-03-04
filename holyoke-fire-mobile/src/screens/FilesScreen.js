@@ -13,7 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { getFiles, deleteFile, uploadFile } from '../services/fileApi';
-import { COLORS } from '../utils/constants';
+import { COLORS, API_URL } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -62,35 +62,15 @@ export default function FilesScreen({ user }) {
   }, [selectedCategory]);
 
   const handleDownload = async (fileId, fileName) => {
-    try {
-      const file = files.find(f => f.id === fileId);
-      const url = file?.file_path;
-
-      if (!url || typeof url !== 'string') {
-        Alert.alert('Error', 'File URL not available');
-        return;
-      }
-
-      const fileExt = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
-
-      // Use Google Docs viewer for PDFs so Android can open them
-      let openUrl = url;
-      if (fileExt === 'pdf') {
-        openUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
-      }
-
-      console.log('Opening URL:', openUrl);
-      const supported = await Linking.canOpenURL(openUrl);
-      if (supported) {
-        await Linking.openURL(openUrl);
-      } else {
-        Alert.alert('Error', 'Cannot open this file type');
-      }
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      Alert.alert('Error', 'Failed to download file');
-    }
-  };
+  try {
+    const openUrl = `${API_URL}/files/${fileId}/download`;
+    console.log('Opening URL:', openUrl);
+    await Linking.openURL(openUrl);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    Alert.alert('Error', 'Failed to download file');
+  }
+};
 
   const handleDelete = async (fileId, fileName) => {
     Alert.alert(

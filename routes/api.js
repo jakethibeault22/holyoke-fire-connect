@@ -1073,7 +1073,15 @@ router.get('/files/:id/download', async (req, res) => {
     const file = result.rows[0];
 
 if (file.file_path.startsWith('http')) {
-  return res.json({ url: file.file_path, filename: file.original_filename });
+  const https = require('https');
+  const fileUrl = file.file_path;
+  res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
+  res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+  https.get(fileUrl, (stream) => stream.pipe(res)).on('error', (err) => {
+    console.error('Proxy error:', err);
+    res.status(500).json({ error: 'Failed to proxy file' });
+  });
+  return;
 }
 
 return res.status(404).json({ error: 'File not found' });
