@@ -102,13 +102,12 @@ const storage = new CloudinaryStorage({
     const isImage = file.mimetype.startsWith('image/');
     const isVideo = file.mimetype.startsWith('video/');
     const ext = file.originalname.split('.').pop().toLowerCase();
-    const baseName = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    return {
-      folder: 'holyoke-fire-connect',
-      resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
-      public_id: isImage || isVideo ? baseName : `${baseName}.${ext}`,
-      format: isImage ? ext : undefined,
-    };
+const baseName = Date.now() + '-' + Math.round(Math.random() * 1E9);
+return {
+  folder: 'holyoke-fire-connect',
+  resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
+  public_id: `${baseName}.${ext}`,
+};
   },
 });
 
