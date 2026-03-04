@@ -13,7 +13,8 @@ import {
   Image,
 } from 'react-native';
 import { getFiles, deleteFile, uploadFile } from '../services/fileApi';
-import { COLORS, API_URL } from '../utils/constants';
+import { API_URL } from '../services/api';
+import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 
