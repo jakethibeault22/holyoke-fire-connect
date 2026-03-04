@@ -82,12 +82,21 @@ export default function FilesScreen({ user }) {
 
     // Append original filename so browser downloads with correct extension
 console.log('Opening URL:', url);
-const supported = await Linking.canOpenURL(url);
+const ext = (file.original_filename || fileName || '').split('.').pop().toLowerCase();
+
+let openUrl = url;
+if (ext === 'pdf') {
+  // Use Google Docs viewer for PDFs on mobile
+  openUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
+}
+
+console.log('Final URL:', openUrl);
+const supported = await Linking.canOpenURL(openUrl);
 if (supported) {
-  await Linking.openURL(url);
-    } else {
-      Alert.alert('Error', 'Cannot open this file type');
-    }
+  await Linking.openURL(openUrl);
+} else {
+  Alert.alert('Error', 'Cannot open this file type');
+}
   } catch (error) {
     console.error('Error downloading file:', error);
     Alert.alert('Error', 'Failed to download file');
