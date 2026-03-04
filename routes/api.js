@@ -1075,15 +1075,20 @@ router.get('/files/:id/download', async (req, res) => {
 if (file.file_path.startsWith('http')) {
   const axios = require('axios');
   try {
+    console.log('Proxying file from:', file.file_path);
     const response = await axios.get(file.file_path, { responseType: 'stream' });
+    console.log('Cloudinary response status:', response.status);
+    console.log('Cloudinary content-type:', response.headers['content-type']);
     res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
     res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
     response.data.pipe(res);
   } catch (err) {
-    console.error('Proxy error:', err);
-    res.status(500).json({ error: 'Failed to proxy file' });
+    console.error('Proxy error full:', err.message);
+    console.error('Proxy error response:', err.response?.status, err.response?.data);
+    res.status(500).json({ error: 'Failed to proxy file', details: err.message });
   }
   return;
+};
 }
 
 return res.status(404).json({ error: 'File not found' });
