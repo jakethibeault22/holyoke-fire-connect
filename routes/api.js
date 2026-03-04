@@ -106,8 +106,8 @@ const baseName = Date.now() + '-' + Math.round(Math.random() * 1E9);
 return {
   folder: 'holyoke-fire-connect',
   resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
+  type: 'upload',
   public_id: `${baseName}.${ext}`,
-  access_mode: 'public',
 };
   },
 });
