@@ -11,6 +11,8 @@ export const getFiles = async (userId, category = 'all') => {
 };
 
 export const uploadFile = async (userId, title, description, category, fileUri, fileName, fileType) => {
+  console.log('Uploading to:', `${API_URL}/files`);
+  console.log('File:', fileName, fileType, fileUri);
   const formData = new FormData();
   formData.append('userId', userId);
   formData.append('title', title);
@@ -37,6 +39,6 @@ export const deleteFile = async (fileId, userId) => {
   return response.data;
 };
 
-export const downloadFile = async (fileId) => {
+export const downloadFile = (fileId) => {
   return `${API_URL}/files/${fileId}/download`;
 };
