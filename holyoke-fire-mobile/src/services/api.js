@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // IMPORTANT: Update this to your actual Render.com URL
 export const API_URL = 'https://holyoke-fire-connect.onrender.com/api';
@@ -56,14 +57,13 @@ export const getBulletinsByCategory = async (category, userId) => {
 };
 
 export const postBulletin = async (userId, title, body, category, files = []) => {
-  const FileSystem = require('expo-file-system');
 
   // Convert files to base64
   const encodedFiles = await Promise.all(
     files.map(async (file) => {
       const base64 = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+  encoding: 'base64',
+});
       return {
         name: file.name || 'upload',
         mimeType: file.mimeType || 'application/octet-stream',
