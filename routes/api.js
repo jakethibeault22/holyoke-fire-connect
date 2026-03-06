@@ -523,6 +523,37 @@ router.get('/bulletins/all', async (req, res) => {
   }
 });
 
+// Mobile bulletin post (JSON/base64)
+router.post('/bulletins/mobile', async (req, res) => {
+  const { title, body, category, userId, files } = req.body;
+  const result = await addBulletin(title, body, category || 'west-wing', userId);
+
+  if (result.error) {
+    return res.status(403).json(result);
+  }
+
+  const bulletinId = result.lastInsertRowid;
+
+  if (files && Array.isArray(files) && files.length > 0) {
+    for (const file of files) {
+      try {
+        const buffer = Buffer.from(file.base64, 'base64');
+        const ext = (file.name || 'upload').split('.').pop();
+        const filename = Date.now() + '-' + Math.round(Math.random() * 1e9) + '.' + ext;
+        const uploadDir = path.resolve(__dirname, '../../data/uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, buffer);
+        await addAttachment(filename, file.name, filePath, buffer.length, file.mimeType, bulletinId, null);
+      } catch (err) {
+        console.error('Error saving base64 file:', err);
+      }
+    }
+  }
+
+  res.json({ success: true, id: bulletinId });
+});
+
 router.post('/bulletins', upload.array('files', 5), async (req, res) => {
   const { title, body, category, userId } = req.body;
   const result = await addBulletin(title, body, category || 'west-wing', userId);

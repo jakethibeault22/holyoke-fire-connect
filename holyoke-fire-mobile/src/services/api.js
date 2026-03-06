@@ -56,25 +56,30 @@ export const getBulletinsByCategory = async (category, userId) => {
 };
 
 export const postBulletin = async (userId, title, body, category, files = []) => {
-  const formData = new FormData();
-  formData.append('userId', userId);
-  formData.append('title', title);
-  formData.append('body', body);
-  formData.append('category', category);
-  
-  // Add files if any
-  files.forEach((file) => {
-    formData.append('files', {
-      uri: file.uri,
-      name: file.name,
-      type: file.mimeType || 'application/octet-stream'
-    });
-  });
+  const FileSystem = require('expo-file-system');
 
-  const response = await axios.post(`${API_URL}/bulletins`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  // Convert files to base64
+  const encodedFiles = await Promise.all(
+    files.map(async (file) => {
+      const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return {
+        name: file.name || 'upload',
+        mimeType: file.mimeType || 'application/octet-stream',
+        base64,
+      };
+    })
+  );
+
+  const response = await axios.post(`${API_URL}/bulletins`, {
+    userId,
+    title,
+    body,
+    category,
+    files: encodedFiles,
+  }, {
+    headers: { 'Content-Type': 'application/json' },
   });
   return response.data;
 };

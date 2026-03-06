@@ -70,7 +70,18 @@ export default function App() {
       
       // Poll every 30 seconds
       const interval = setInterval(loadNotificationCounts, 30000);
-      return () => clearInterval(interval);
+
+      // Ping server every 14 minutes to prevent Render free tier hibernation
+      const ping = () => {
+        fetch(`${API_URL}/users`).catch(() => {});
+      };
+      ping();
+      const pingInterval = setInterval(ping, 14 * 60 * 1000);
+
+      return () => {
+        clearInterval(interval);
+        clearInterval(pingInterval);
+      };
     }
   }, [user]);
   

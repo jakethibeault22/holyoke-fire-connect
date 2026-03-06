@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   View,
   Text,
@@ -8,15 +9,19 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  Linking,
   TextInput,
   Image,
+  Platform,
+  PermissionsAndroid,
+  NativeModules,
 } from 'react-native';
 import { getFiles, deleteFile, uploadFile } from '../services/fileApi';
 import { API_URL } from '../services/api';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
+import RNFS from 'react-native-fs';
+
+const { MediaStoreModule } = NativeModules;
 
 const CATEGORIES = [
   { id: 'all', label: 'All Files' },
@@ -63,15 +68,46 @@ export default function FilesScreen({ user }) {
   }, [selectedCategory]);
 
   const handleDownload = async (fileId, fileName) => {
-  try {
-    const openUrl = `${API_URL}/files/${fileId}/download`;
-    console.log('Opening URL:', openUrl);
-    await Linking.openURL(openUrl);
-  } catch (error) {
-    console.error('Error downloading file:', error);
-    Alert.alert('Error', 'Failed to download file');
-  }
-};
+    try {
+      const response = await fetch(`${API_URL}/files/${fileId}/download`);
+      const data = await response.json();
+
+      if (!data.url) {
+        Alert.alert('Error', 'Could not get download URL');
+        return;
+      }
+
+      const ext = data.filename.includes('.') ? '.' + data.filename.split('.').pop() : '';
+      const baseName = data.filename.includes('.') ? data.filename.slice(0, data.filename.lastIndexOf('.')) : data.filename;
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '').replace('Z', '');
+      const safeFilename = (baseName + '_' + timestamp + ext).replace(/[/\\?%*:|"<>]/g, '-');
+      const mimeType = data.mimeType || 'application/octet-stream';
+
+      // Download to app's private storage first
+      const tempPath = `${RNFS.DocumentDirectoryPath}/${safeFilename}`;
+
+      const dlResult = await RNFS.downloadFile({
+        fromUrl: data.url,
+        toFile: tempPath,
+      }).promise;
+
+      if (dlResult.statusCode !== 200) {
+        Alert.alert('Error', `Download failed with status ${dlResult.statusCode}`);
+        return;
+      }
+
+      // Move to public Downloads via MediaStore API
+      await MediaStoreModule.saveFileToDownloads(tempPath, safeFilename, mimeType);
+
+      // Clean up temp file
+      await RNFS.unlink(tempPath).catch(() => {});
+
+      Alert.alert('Success', `"${safeFilename}" saved to your Downloads folder.`);
+    } catch (error) {
+      console.error('Download error:', error.message);
+      Alert.alert('Error', 'Failed to download file: ' + error.message);
+    }
+  };
 
   const handleDelete = async (fileId, fileName) => {
     Alert.alert(
@@ -99,6 +135,17 @@ export default function FilesScreen({ user }) {
 
   const pickDocument = async () => {
     try {
+      if (Platform.OS === 'android') {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          {
+            title: 'File Access Permission',
+            message: 'App needs access to your files to upload documents.',
+            buttonPositive: 'Allow',
+          }
+        );
+      }
+
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: true,
@@ -109,7 +156,7 @@ export default function FilesScreen({ user }) {
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+      Alert.alert('Error', 'Failed to pick document: ' + error.message);
     }
   };
 
@@ -318,6 +365,7 @@ export default function FilesScreen({ user }) {
                 value={uploadTitle}
                 onChangeText={setUploadTitle}
                 placeholder="Enter file title"
+                placeholderTextColor={COLORS.gray400}
               />
 
               <Text style={styles.label}>Description</Text>
@@ -326,6 +374,7 @@ export default function FilesScreen({ user }) {
                 value={uploadDescription}
                 onChangeText={setUploadDescription}
                 placeholder="Enter description (optional)"
+                placeholderTextColor={COLORS.gray400}
                 multiline
                 numberOfLines={3}
               />
@@ -605,6 +654,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
+    color: '#000000',
   },
   textArea: {
     height: 80,
