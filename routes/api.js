@@ -567,14 +567,14 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
       for (const file of req.files) {
         console.log('Cloudinary file object:', JSON.stringify(file, null, 2));
         await addAttachment(
-  file.filename,
-  file.originalname,
-  file.path || file.secure_url || file.url,
-  file.size || file.bytes || 0,
-  file.mimetype,
-  null,
-  messageId
-);
+          file.filename,
+          file.originalname,
+          file.path || file.secure_url || file.url,
+          file.size || file.bytes || 0,
+          file.mimetype,
+          bulletinId,
+          null
+        );
       }
     }
     
@@ -730,14 +730,14 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         await addAttachment(
-  file.filename,
-  file.originalname,
-  file.path || file.secure_url || file.url,
-  file.bytes || file.size || 0,
-  file.mimetype,
-  bulletinId,
-  null
-);
+          file.filename,
+          file.originalname,
+          file.path || file.secure_url || file.url,
+          file.bytes || file.size || 0,
+          file.mimetype,
+          null,
+          messageId
+        );
       }
     }
     

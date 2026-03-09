@@ -600,7 +600,16 @@ const fetchBulletins = async (category = 'west-wing') => {
     try {
       const res = await fetch(`/api/bulletins/${bulletinId}/attachments`);
       const data = await res.json();
-      setBulletinAttachments(prev => ({ ...prev, [bulletinId]: data }));
+      // Resolve Cloudinary URLs for each attachment
+      const resolved = await Promise.all(data.map(async (att) => {
+        if (att.file_path?.startsWith('http')) return { ...att, resolvedUrl: att.file_path };
+        try {
+          const r = await fetch(`/api/bulletins/${bulletinId}/attachments/${att.id}`);
+          const j = await r.json();
+          return { ...att, resolvedUrl: j.url || att.file_path };
+        } catch { return { ...att, resolvedUrl: att.file_path }; }
+      }));
+      setBulletinAttachments(prev => ({ ...prev, [bulletinId]: resolved }));
     } catch (err) {
       console.error('Error fetching bulletin attachments:', err);
     }
@@ -643,7 +652,15 @@ const fetchInbox = async () => {
     try {
       const res = await fetch(`/api/messages/${messageId}/attachments`);
       const data = await res.json();
-      setMessageAttachments(prev => ({ ...prev, [messageId]: data }));
+      const resolved = await Promise.all(data.map(async (att) => {
+        if (att.file_path?.startsWith('http')) return { ...att, resolvedUrl: att.file_path };
+        try {
+          const r = await fetch(`/api/messages/${messageId}/attachments/${att.id}`);
+          const j = await r.json();
+          return { ...att, resolvedUrl: j.url || att.file_path };
+        } catch { return { ...att, resolvedUrl: att.file_path }; }
+      }));
+      setMessageAttachments(prev => ({ ...prev, [messageId]: resolved }));
     } catch (err) {
       console.error('Error fetching message attachments:', err);
     }
@@ -1874,28 +1891,28 @@ if (!user) {
                       </button>
                     </div>
                     <img
-                      src={`/api/bulletins/${b.id}/attachments/${att.id}`}
-                      alt={att.filename}
+                      src={att.resolvedUrl}
+                      alt={att.original_filename || att.filename}
                       className="max-w-full h-auto rounded border cursor-pointer hover:opacity-90 transition"
                       style={{ maxHeight: '400px' }}
-                      onClick={(e) => { e.stopPropagation(); setFullscreenImg(`/api/bulletins/${b.id}/attachments/${att.id}`); }}
+                      onClick={(e) => { e.stopPropagation(); setFullscreenImg(att.resolvedUrl); }}
                     />
                   </div>
                 ) : isPDFFile(att.filename, att.mime_type) ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       {getFileIcon(att.filename)}
-                      <span className="text-sm font-medium">{att.filename}</span>
+                      <span className="text-sm font-medium">{att.original_filename || att.filename}</span>
                       
-                     <button onClick={(e) => handleDownload(e, `/api/bulletins/${b.id}/attachments/${att.id}`, att.original_filename || att.filename)} className="ml-auto">
+                     <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className="ml-auto">
                       <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
                      </button>
                     </div>
                     <iframe
-                      src={`/api/bulletins/${b.id}/attachments/${att.id}`}
+                      src={att.resolvedUrl}
                       className="w-full border rounded"
                       style={{ height: '500px' }}
-                      title={att.filename}
+                      title={att.original_filename || att.filename}
                     />
                   </div>
                 ) : (
@@ -2098,35 +2115,35 @@ if (!user) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-                <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+                <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
                  <Download className="h-4 w-4" />
                 </button>
             </div>
             <img
-              src={`/api/messages/${msg.id}/attachments/${att.id}`}
-              alt={att.filename}
-              className="max-w-full h-auto rounded border cursor-pointer hover:opacity-90 transition"
+              src={att.resolvedUrl}
+              alt={att.original_filename || att.filename}
+              className="max-w-full h-auto rounded border"
               style={{ maxHeight: '300px' }}
-              onClick={(e) => { e.stopPropagation(); setFullscreenImg(`/api/messages/${msg.id}/attachments/${att.id}`); }}
+              onClick={(e) => { e.stopPropagation(); setFullscreenImg(att.resolvedUrl); }}
             />
           </div>
         ) : isPDFFile(att.filename, att.mime_type) ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">{att.filename}</span>
-                <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+                <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className={`ml-auto ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
                   <Download className="h-4 w-4" />
                 </button>
             </div>
             <iframe
-              src={`/api/messages/${msg.id}/attachments/${att.id}`}
+              src={att.resolvedUrl}
               className="w-full border rounded"
               style={{ height: '400px' }}
               title={att.filename}
             />
           </div>
         ) : (
-            <button onClick={(e) => handleDownload(e, `/api/messages/${msg.id}/attachments/${att.id}`, att.original_filename || att.filename)} className={`flex items-center gap-2 text-xs ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
+            <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className={`flex items-center gap-2 text-xs ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
              <Download className="h-3 w-3" />
              {att.original_filename || att.filename}
             </button>
