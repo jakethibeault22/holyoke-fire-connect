@@ -1896,6 +1896,7 @@ if (!user) {
                       className="max-w-full h-auto rounded border cursor-pointer hover:opacity-90 transition"
                       style={{ maxHeight: '400px' }}
                       onClick={(e) => { e.stopPropagation(); setFullscreenImg(att.resolvedUrl); }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
                     />
                   </div>
                 ) : isPDFFile(att.filename, att.mime_type) ? (
