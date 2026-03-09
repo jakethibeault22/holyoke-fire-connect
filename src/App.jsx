@@ -807,48 +807,20 @@ const handlePostBulletin = async () => {
   if (!bulletinTitle.trim() || !bulletinBody.trim()) return;
 
   try {
-    // Convert files to base64
-    const encodedFiles = await Promise.all(
-      bulletinFiles.map(file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({
-          name: file.name,
-          mimeType: file.type,
-          base64: reader.result.split(',')[1]
-        });
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      }))
-    );
+    const formData = new FormData();
+    formData.append('title', bulletinTitle);
+    formData.append('body', bulletinBody);
+    formData.append('category', bulletinCategory);
+    formData.append('userId', user.id);
 
-    const res = await fetch('/api/bulletins/mobile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: bulletinTitle,
-        body: bulletinBody,
-        category: bulletinCategory,
-        userId: user.id,
-        files: encodedFiles
-      })
+    bulletinFiles.forEach(file => {
+      formData.append('files', file);
     });
-    const data = await res.json();
-    
-    if (data.success) {
-      setBulletinTitle("");
-      setBulletinBody("");
-      setBulletinFiles([]);
-      setShowBulletinForm(false);
-      fetchBulletins(selectedBulletinCategory);
-      fetchAllBulletins();
-    } else if (data.error) {
-      // Removed alert, silently handle error or show inline error message
-      console.error('Error posting bulletin:', data.error);
-    }
-  } catch (err) {
-    console.error('Error posting bulletin:', err);
-  }
-};
+
+    const res = await fetch('/api/bulletins', {
+      method: 'POST',
+      body: formData
+    });
 
   const handleDeleteBulletin = async (bulletinId) => {
     if (!confirm('Delete this bulletin?')) return;

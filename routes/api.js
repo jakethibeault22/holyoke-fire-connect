@@ -757,4 +757,105 @@ router.get('/admin/export-sql', async (req, res) => {
   }
 });
 
+// Password reset request table (run once if not exists)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS password_reset_requests (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    username VARCHAR(255),
+    name VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`).catch(err => console.error('Error creating password_reset_requests table:', err));
+
+// User requests a password reset (public - no auth needed)
+router.post('/request-password-reset', async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+
+  try {
+    const userResult = await pool.query(
+      'SELECT id, name, username FROM users WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+    if (userResult.rows.length === 0) {
+      // Return success anyway to not reveal if username exists
+      return res.json({ success: true });
+    }
+    const u = userResult.rows[0];
+    await pool.query(
+      'INSERT INTO password_reset_requests (user_id, username, name) VALUES ($1, $2, $3)',
+      [u.id, u.username, u.name]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error creating password reset request:', err);
+    res.status(500).json({ error: 'Failed to submit request' });
+  }
+});
+
+// Admin: get all pending password reset requests
+router.get('/admin/password-reset-requests', async (req, res) => {
+  const { requestingUserId } = req.query;
+  if (!requestingUserId) return res.status(400).json({ error: 'requestingUserId required' });
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM password_reset_requests WHERE status = 'pending' ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching reset requests:', err);
+    res.status(500).json({ error: 'Failed to fetch requests' });
+  }
+});
+
+// Admin: dismiss a password reset request
+router.post('/admin/password-reset-requests/:id/dismiss', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query(
+      `UPDATE password_reset_requests SET status = 'dismissed' WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to dismiss request' });
+  }
+});
+
+// Admin: resolve a password reset request (marks it done, admin then uses reset-password endpoint)
+router.post('/admin/password-reset-requests/:id/resolve', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query(
+      `UPDATE password_reset_requests SET status = 'resolved' WHERE id = $1`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to resolve request' });
+  }
+});
+
+// User changes their own password (after admin reset)
+router.post('/change-password', async (req, res) => {
+  const { userId, newPassword } = req.body;
+  if (!userId || !newPassword) return res.status(400).json({ error: 'userId and newPassword required' });
+
+  try {
+    const crypto = require('crypto');
+    const hashed = crypto.createHash('sha256').update(newPassword).digest('hex');
+    await pool.query(
+      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
+      [hashed, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error changing password:', err);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
 module.exports = router;
