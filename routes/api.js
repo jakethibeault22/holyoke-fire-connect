@@ -37,7 +37,7 @@ const {
 } = require('../main');
 
 // Public routes that don't require authentication
-const publicRoutes = ['/login', '/register', '/request-password-reset'];
+const publicRoutes = ['/login', '/register'];
 
 // Routes that should skip auth (authenticated in other ways)
 const skipAuthRoutes = ['/users', '/users/by-role'];
@@ -54,13 +54,8 @@ const requireAuth = (req, res, next) => {
     return next();
   }
   
-  // Allow admin password reset routes - they validate requestingUserId internally
-  if (req.path.startsWith('/admin/password-reset-requests')) {
-    return next();
-  }
-  
   // Skip auth for POST routes with file uploads (they handle auth after multer processes FormData)
-  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path === '/files' || req.path.startsWith('/admin/users'))) {
+  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path.startsWith('/admin/users'))) {
     return next();
   }
   
@@ -86,36 +81,51 @@ const requireAuth = (req, res, next) => {
 // Apply auth middleware to all routes
 router.use(requireAuth);
 
-// Configure multer for file uploads
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+// Configure Cloudinary + multer for file uploads
+let upload;
+try {
+  const cloudinary = require('cloudinary').v2;
+  const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
 
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    const isImage = file.mimetype.startsWith('image/');
-    const isVideo = file.mimetype.startsWith('video/');
-    const ext = file.originalname.split('.').pop().toLowerCase();
-const baseName = Date.now() + '-' + Math.round(Math.random() * 1E9);
-return {
-  folder: 'holyoke-fire-connect',
-  resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
-  type: 'upload',
-  public_id: `${baseName}.${ext}`,
-};
-  },
-});
+  const cloudinaryStorage = new CloudinaryStorage({
+    cloudinary,
+    params: async (req, file) => {
+      const isImage = file.mimetype.startsWith('image/');
+      const isVideo = file.mimetype.startsWith('video/');
+      const ext = file.originalname.split('.').pop().toLowerCase();
+      const baseName = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      return {
+        folder: 'holyoke-fire-connect',
+        resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
+        type: 'upload',
+        public_id: `${baseName}.${ext}`,
+      };
+    },
+  });
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }
-});
+  upload = multer({ storage: cloudinaryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+  console.log('✔ Cloudinary storage configured');
+} catch (err) {
+  console.warn('⚠ Cloudinary not available, falling back to local disk storage:', err.message);
+  const diskStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.resolve(__dirname, '../../data/uploads');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  });
+  upload = multer({ storage: diskStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+}
 
 // Public registration (no auth required)
 router.post('/register', async (req, res) => {
@@ -131,229 +141,6 @@ router.post('/register', async (req, res) => {
     res.status(400).json(result);
   } else {
     res.json({ success: true, message: 'Registration submitted. Please wait for admin approval.' });
-  }
-});
-
-// Request password reset (public - no auth required)
-router.post('/request-password-reset', async (req, res) => {
-  const { username } = req.body;
-  
-  if (!username) {
-    return res.status(400).json({ error: 'Username is required' });
-  }
-  
-  try {
-    // Check if user exists
-    const userResult = await pool.query(
-      'SELECT id, email, name FROM users WHERE LOWER(username) = LOWER($1)',
-      [username]
-    );
-    
-    if (userResult.rows.length === 0) {
-      // Don't reveal if user exists or not for security
-      return res.json({ success: true, message: 'If your username exists, an administrator will review your request.' });
-    }
-    
-    const user = userResult.rows[0];
-    
-    // Check if there's already a pending request
-    const existingRequest = await pool.query(
-      'SELECT id FROM password_reset_requests WHERE user_id = $1 AND status = $2',
-      [user.id, 'pending']
-    );
-    
-    if (existingRequest.rows.length > 0) {
-      return res.json({ success: true, message: 'You already have a pending password reset request.' });
-    }
-    
-    // Create password reset request
-    await pool.query(
-      'INSERT INTO password_reset_requests (user_id, status) VALUES ($1, $2)',
-      [user.id, 'pending']
-    );
-    
-    res.json({ success: true, message: 'Password reset request submitted. An administrator will review your request.' });
-  } catch (err) {
-    console.error('Error requesting password reset:', err);
-    res.status(500).json({ error: 'Failed to submit password reset request' });
-  }
-});
-
-// Get password reset requests (Admin only)
-router.get('/admin/password-reset-requests', async (req, res) => {
-  const { requestingUserId } = req.query;
-  
-  if (!requestingUserId) {
-    return res.status(400).json({ error: 'requestingUserId required' });
-  }
-  
-  try {
-    const requestingUser = await getUserById(parseInt(requestingUserId));
-    if (!requestingUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const userRoles = requestingUser.roles || [requestingUser.role];
-    const isAdmin = userRoles.some(role => 
-      role === 'admin' || role === 'super_user' || role === 'chief'
-    );
-    
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
-    }
-    
-    const result = await pool.query(`
-      SELECT prr.id, prr.user_id, prr.created_at, prr.status,
-             u.name, u.username, u.email
-      FROM password_reset_requests prr
-      JOIN users u ON prr.user_id = u.id
-      WHERE prr.status = 'pending'
-      ORDER BY prr.created_at DESC
-    `);
-    
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching password reset requests:', err);
-    res.status(500).json({ error: 'Failed to fetch password reset requests' });
-  }
-});
-
-// Approve password reset request
-router.post('/admin/password-reset-requests/:id/approve', async (req, res) => {
-  const requestId = parseInt(req.params.id);
-  const { newPassword, requestingUserId } = req.body;
-  
-  if (!newPassword || !requestingUserId) {
-    return res.status(400).json({ error: 'newPassword and requestingUserId are required' });
-  }
-  
-  try {
-    const requestingUser = await getUserById(parseInt(requestingUserId));
-    if (!requestingUser) {
-      return res.status(404).json({ error: 'Requesting user not found' });
-    }
-    
-    const userRoles = requestingUser.roles || [requestingUser.role];
-    const isAdmin = userRoles.some(role => 
-      role === 'admin' || role === 'super_user' || role === 'chief'
-    );
-    
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
-    }
-    
-    // Get the password reset request
-    const requestResult = await pool.query(
-      'SELECT user_id FROM password_reset_requests WHERE id = $1 AND status = $2',
-      [requestId, 'pending']
-    );
-    
-    if (requestResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Password reset request not found or already processed' });
-    }
-    
-    const userId = requestResult.rows[0].user_id;
-    
-    // Reset the user's password and set must_change_password flag
-    const result = await resetPassword(userId, newPassword, requestingUserId);
-    
-    if (result.error) {
-      return res.status(403).json(result);
-    }
-    
-    // Mark user as must change password
-    await pool.query(
-      'UPDATE users SET must_change_password = true WHERE id = $1',
-      [userId]
-    );
-    
-    // Mark request as approved
-    await pool.query(
-      'UPDATE password_reset_requests SET status = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2',
-      ['approved', requestId]
-    );
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error approving password reset:', err);
-    res.status(500).json({ error: 'Failed to approve password reset' });
-  }
-});
-
-// Reject password reset request
-router.post('/admin/password-reset-requests/:id/reject', async (req, res) => {
-  const requestId = parseInt(req.params.id);
-  const { requestingUserId } = req.body;
-  
-  if (!requestingUserId) {
-    return res.status(400).json({ error: 'requestingUserId is required' });
-  }
-  
-  try {
-    const requestingUser = await getUserById(parseInt(requestingUserId));
-    if (!requestingUser) {
-      return res.status(404).json({ error: 'Requesting user not found' });
-    }
-    
-    const userRoles = requestingUser.roles || [requestingUser.role];
-    const isAdmin = userRoles.some(role => 
-      role === 'admin' || role === 'super_user' || role === 'chief'
-    );
-    
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized - Admin access required' });
-    }
-    
-    // Mark request as rejected
-    const result = await pool.query(
-      'UPDATE password_reset_requests SET status = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2 AND status = $3',
-      ['rejected', requestId, 'pending']
-    );
-    
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Password reset request not found or already processed' });
-    }
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error rejecting password reset:', err);
-    res.status(500).json({ error: 'Failed to reject password reset' });
-  }
-});
-
-// Change own password (after admin reset)
-router.post('/change-password', async (req, res) => {
-  const { userId, oldPassword, newPassword } = req.body;
-  
-  if (!userId || !oldPassword || !newPassword) {
-    return res.status(400).json({ error: 'userId, oldPassword, and newPassword are required' });
-  }
-  
-  try {
-    const crypto = require('crypto');
-    const hashedOldPassword = crypto.createHash('sha256').update(oldPassword).digest('hex');
-    
-    // Verify old password
-    const userResult = await pool.query(
-      'SELECT id FROM users WHERE id = $1 AND password_hash = $2',
-      [userId, hashedOldPassword]
-    );
-    
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
-    }
-    
-    // Set new password and clear must_change_password flag
-    const hashedNewPassword = crypto.createHash('sha256').update(newPassword).digest('hex');
-    await pool.query(
-      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
-      [hashedNewPassword, userId]
-    );
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error changing password:', err);
-    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -447,40 +234,6 @@ router.post('/admin/reject-user/:id', async (req, res) => {
   }
 });
 
-// Save push notification token
-router.post('/users/:userId/push-token', async (req, res) => {
-  const userId = parseInt(req.params.userId);
-  const { pushToken } = req.body;
-  
-  if (!pushToken) {
-    return res.status(400).json({ error: 'pushToken is required' });
-  }
-  
-  try {
-    await pool.query(
-      'INSERT INTO push_tokens (user_id, token) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET token = $2, updated_at = CURRENT_TIMESTAMP',
-      [userId, pushToken]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error saving push token:', err);
-    res.status(500).json({ error: 'Failed to save push token' });
-  }
-});
-
-// Remove push notification token
-router.delete('/users/:userId/push-token', async (req, res) => {
-  const userId = parseInt(req.params.userId);
-  
-  try {
-    await pool.query('DELETE FROM push_tokens WHERE user_id = $1', [userId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error removing push token:', err);
-    res.status(500).json({ error: 'Failed to remove push token' });
-  }
-});
-
 // --- Bulletins ---
 router.get('/bulletins', async (req, res) => {
   const bulletins = await getBulletins();
@@ -523,37 +276,7 @@ router.get('/bulletins/all', async (req, res) => {
   }
 });
 
-// Mobile bulletin post (JSON/base64)
-router.post('/bulletins/mobile', async (req, res) => {
-  const { title, body, category, userId, files } = req.body;
-  const result = await addBulletin(title, body, category || 'west-wing', userId);
-
-  if (result.error) {
-    return res.status(403).json(result);
-  }
-
-  const bulletinId = result.lastInsertRowid;
-
-  if (files && Array.isArray(files) && files.length > 0) {
-    for (const file of files) {
-      try {
-        const buffer = Buffer.from(file.base64, 'base64');
-        const ext = (file.name || 'upload').split('.').pop();
-        const filename = Date.now() + '-' + Math.round(Math.random() * 1e9) + '.' + ext;
-        const uploadDir = path.resolve(__dirname, '../../data/uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        const filePath = path.join(uploadDir, filename);
-        fs.writeFileSync(filePath, buffer);
-        await addAttachment(filename, file.name, filePath, buffer.length, file.mimeType, bulletinId, null);
-      } catch (err) {
-        console.error('Error saving base64 file:', err);
-      }
-    }
-  }
-
-  res.json({ success: true, id: bulletinId });
-});
-
+// Post bulletin (web)
 router.post('/bulletins', upload.array('files', 5), async (req, res) => {
   const { title, body, category, userId } = req.body;
   const result = await addBulletin(title, body, category || 'west-wing', userId);
@@ -563,15 +286,15 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
   } else {
     const bulletinId = result.lastInsertRowid;
     
+    // FIX: use Cloudinary URL (secure_url) with fallback to local path
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        console.log('Cloudinary file object:', JSON.stringify(file, null, 2));
         await addAttachment(
-          file.filename,
-          file.originalname,
+          file.filename || file.original_filename,
+          file.originalname || file.original_filename,
           file.secure_url || file.url || file.path,
-          file.size || file.bytes || 0,
-          file.mimetype,
+          file.bytes || file.size || 0,
+          file.mimetype || file.resource_type,
           bulletinId,
           null
         );
@@ -639,7 +362,8 @@ router.get('/bulletins/:id/attachments', async (req, res) => {
   res.json(attachments);
 });
 
-// Download bulletin attachment
+// Download/serve bulletin attachment
+// FIX: redirect to Cloudinary URL if stored, otherwise fall back to local disk
 router.get('/bulletins/:bulletinId/attachments/:attachmentId', async (req, res) => {
   const attachmentId = parseInt(req.params.attachmentId);
   
@@ -654,12 +378,23 @@ router.get('/bulletins/:bulletinId/attachments/:attachmentId', async (req, res) 
     }
     
     const attachment = result.rows[0];
-// Return URL directly so clients can open Cloudinary links without redirect issues
-return res.json({ url: attachment.file_path, filename: attachment.original_filename });
-} catch (err) {
-  console.error('Error retrieving attachment:', err);
-  res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
-}
+
+    // If stored as a Cloudinary (or any http) URL, redirect directly
+    if (attachment.file_path && attachment.file_path.startsWith('http')) {
+      return res.redirect(attachment.file_path);
+    }
+
+    // Fallback: serve from local disk (legacy attachments)
+    const filePath = path.resolve(attachment.file_path);
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found on disk:', filePath);
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Error retrieving attachment:', err);
+    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
+  }
 });
 
 // Check if user can view a category
@@ -726,15 +461,15 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
       [senderId, messageId]
     );
     
-    // Add attachments if any
+    // FIX: use Cloudinary URL (secure_url) with fallback to local path
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         await addAttachment(
-          file.filename,
-          file.originalname,
+          file.filename || file.original_filename,
+          file.originalname || file.original_filename,
           file.secure_url || file.url || file.path,
           file.bytes || file.size || 0,
-          file.mimetype,
+          file.mimetype || file.resource_type,
           null,
           messageId
         );
@@ -809,7 +544,8 @@ router.get('/messages/:id/attachments', async (req, res) => {
   res.json(attachments);
 });
 
-// Download message attachment
+// Download/serve message attachment
+// FIX: redirect to Cloudinary URL if stored, otherwise fall back to local disk
 router.get('/messages/:messageId/attachments/:attachmentId', async (req, res) => {
   const attachmentId = parseInt(req.params.attachmentId);
   
@@ -824,11 +560,23 @@ router.get('/messages/:messageId/attachments/:attachmentId', async (req, res) =>
     }
     
     const attachment = result.rows[0];
-return res.json({ url: attachment.file_path, filename: attachment.original_filename });
-} catch (err) {
-  console.error('Error retrieving attachment:', err);
-  res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
-}
+
+    // If stored as a Cloudinary (or any http) URL, redirect directly
+    if (attachment.file_path && attachment.file_path.startsWith('http')) {
+      return res.redirect(attachment.file_path);
+    }
+
+    // Fallback: serve from local disk (legacy attachments)
+    const filePath = path.resolve(attachment.file_path);
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found on disk:', filePath);
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Error retrieving attachment:', err);
+    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
+  }
 });
 
 // Delete attachment
@@ -866,7 +614,6 @@ router.get('/messages/thread/:threadId/read-receipts', async (req, res) => {
   }
   
   try {
-    // Get all read receipts for messages in this thread
     const result = await pool.query(`
       SELECT mr.message_id, mr.user_id, u.name, mr.read_at
       FROM message_reads mr
@@ -1007,177 +754,6 @@ router.get('/admin/export-sql', async (req, res) => {
   } catch (err) {
     console.error('Error creating backup:', err);
     res.status(500).json({ error: 'Backup failed', details: err.message });
-  }
-});
-
-// --- File Library ---
-
-// Get all files (optionally filtered by category)
-router.get('/files', async (req, res) => {
-  const { category, userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-
-  try {
-    let query = `
-      SELECT f.*, u.name as uploaded_by_name
-      FROM file_library f
-      LEFT JOIN users u ON f.uploaded_by = u.id
-    `;
-    const params = [];
-
-    if (category && category !== 'all') {
-      query += ' WHERE f.category = $1';
-      params.push(category);
-    }
-
-    query += ' ORDER BY f.created_at DESC';
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching files:', err);
-    res.status(500).json({ error: 'Failed to fetch files' });
-  }
-});
-
-// Upload a file to the library
-router.post('/files', upload.single('file'), async (req, res) => {
-  console.log('File upload hit. req.file:', JSON.stringify(req.file, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
-  const { title, description, category, userId } = req.body;
-
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
-  if (!title || !userId) {
-    return res.status(400).json({ error: 'Title and userId required' });
-  }
-
-  try {
-    const user = await getUserById(parseInt(userId));
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO file_library 
-        (title, description, filename, original_filename, file_path, file_size, mime_type, category, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id`,
-      [
-        title,
-        description || '',
-        req.file.filename,
-        req.file.originalname,
-        req.file.path,
-        req.file.size,
-        req.file.mimetype,
-        category || 'general',
-        parseInt(userId)
-      ]
-    );
-
-    res.json({ success: true, id: result.rows[0].id });
-  } catch (err) {
-    console.error('Error uploading file:', err);
-    res.status(500).json({ error: 'Failed to upload file' });
-  }
-});
-
-// Download a file from the library
-router.get('/files/:id/download', async (req, res) => {
-  const fileId = parseInt(req.params.id);
-
-  try {
-    const result = await pool.query(
-      'SELECT * FROM file_library WHERE id = $1',
-      [fileId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    const file = result.rows[0];
-	console.log('file_path from DB:', file.file_path);
-    console.log('mime_type:', file.mime_type);
-
-    if (file.file_path.startsWith('http')) {
-      try {
-        const urlParts = file.file_path.split('/upload/');
-        if (urlParts.length < 2) {
-          return res.status(500).json({ error: 'Invalid Cloudinary URL format' });
-        }
-        const publicIdWithExt = urlParts[1].replace(/^v\d+\//, '');
-
-        const mimeType = file.mime_type || '';
-const resourceType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'raw';
-
-const signedUrl = cloudinary.url(publicIdWithExt, {
-  resource_type: resourceType,
-  secure: true,
-});
-
-console.log('Direct URL:', signedUrl);
-return res.json({ url: signedUrl, filename: file.original_filename });
-      } catch (err) {
-        console.error('Signed URL error:', err.message);
-        return res.status(500).json({ error: 'Failed to generate download URL', details: err.message });
-      }
-    }
-
-    return res.status(404).json({ error: 'File not found on storage' });
-  } catch (err) {
-    console.error('Error downloading file:', err);
-    res.status(500).json({ error: 'Failed to download file' });
-  }
-});
-
-// Delete a file from the library
-router.delete('/files/:id', async (req, res) => {
-  const fileId = parseInt(req.params.id);
-  const { userId } = req.body;
-
-  try {
-    const user = await getUserById(parseInt(userId));
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const userRoles = user.roles || [user.role];
-    const isAdminOrHigher = userRoles.includes('admin') || userRoles.includes('super_user');
-
-    const fileResult = await pool.query(
-      'SELECT * FROM file_library WHERE id = $1',
-      [fileId]
-    );
-
-    if (fileResult.rows.length === 0) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    const file = fileResult.rows[0];
-
-    // Only allow admin or the uploader to delete
-    if (!isAdminOrHigher && file.uploaded_by !== parseInt(userId)) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-
-    // Delete file from disk
-    const filePath = path.resolve(file.file_path);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    await pool.query('DELETE FROM file_library WHERE id = $1', [fileId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error deleting file:', err);
-    res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
