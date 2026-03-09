@@ -790,19 +790,30 @@ const handlePostBulletin = async () => {
   if (!bulletinTitle.trim() || !bulletinBody.trim()) return;
 
   try {
-    const formData = new FormData();
-    formData.append('title', bulletinTitle);
-    formData.append('body', bulletinBody);
-    formData.append('category', bulletinCategory);
-    formData.append('userId', user.id);
-    
-    bulletinFiles.forEach(file => {
-      formData.append('files', file);
-    });
+    // Convert files to base64
+    const encodedFiles = await Promise.all(
+      bulletinFiles.map(file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          name: file.name,
+          mimeType: file.type,
+          base64: reader.result.split(',')[1]
+        });
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      }))
+    );
 
-    const res = await fetch('/api/bulletins', {
+    const res = await fetch('/api/bulletins/mobile', {
       method: 'POST',
-      body: formData
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: bulletinTitle,
+        body: bulletinBody,
+        category: bulletinCategory,
+        userId: user.id,
+        files: encodedFiles
+      })
     });
     const data = await res.json();
     
