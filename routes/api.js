@@ -569,7 +569,7 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
         await addAttachment(
           file.filename,
           file.originalname,
-          file.path || file.secure_url || file.url,
+          file.secure_url || file.url || file.path,
           file.size || file.bytes || 0,
           file.mimetype,
           bulletinId,
@@ -732,7 +732,7 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
         await addAttachment(
           file.filename,
           file.originalname,
-          file.path || file.secure_url || file.url,
+          file.secure_url || file.url || file.path,
           file.bytes || file.size || 0,
           file.mimetype,
           null,
