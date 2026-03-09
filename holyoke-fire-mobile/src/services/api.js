@@ -72,7 +72,7 @@ export const postBulletin = async (userId, title, body, category, files = []) =>
     })
   );
 
-  const response = await axios.post(`${API_URL}/bulletins`, {
+  const response = await axios.post(`${API_URL}/bulletins/mobile`, {
     userId,
     title,
     body,

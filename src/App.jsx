@@ -145,6 +145,10 @@ export default function App() {
         fetchPendingUsers();
         fetchPasswordResetRequests();
       }
+	  const keepAlive = setInterval(() => {
+      fetch('/api/users').catch(() => {});
+    }, 14 * 60 * 1000);
+    return () => clearInterval(keepAlive);
     }
   }, [user]);
   
