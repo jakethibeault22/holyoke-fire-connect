@@ -821,6 +821,22 @@ const handlePostBulletin = async () => {
       method: 'POST',
       body: formData
     });
+    const data = await res.json();
+
+    if (data.success) {
+      setBulletinTitle("");
+      setBulletinBody("");
+      setBulletinFiles([]);
+      setShowBulletinForm(false);
+      fetchBulletins(selectedBulletinCategory);
+      fetchAllBulletins();
+    } else if (data.error) {
+      console.error('Error posting bulletin:', data.error);
+    }
+  } catch (err) {
+    console.error('Error posting bulletin:', err);
+  }
+};
 
   const handleDeleteBulletin = async (bulletinId) => {
     if (!confirm('Delete this bulletin?')) return;
