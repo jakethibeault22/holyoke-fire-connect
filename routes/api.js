@@ -55,7 +55,7 @@ const requireAuth = (req, res, next) => {
   }
   
   // Skip auth for POST routes with file uploads (they handle auth after multer processes FormData)
-  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path.startsWith('/admin/users'))) {
+  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path === '/files' || req.path.startsWith('/admin/users'))) {
     return next();
   }
   
@@ -109,7 +109,7 @@ try {
     },
   });
 
-  upload = multer({ storage: cloudinaryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+  upload = multer({ storage: cloudinaryStorage, limits: { fileSize: 200 * 1024 * 1024 } });
   console.log('✔ Cloudinary storage configured');
 } catch (err) {
   console.warn('⚠ Cloudinary not available, falling back to local disk storage:', err.message);
@@ -124,7 +124,7 @@ try {
       cb(null, uniqueName);
     }
   });
-  upload = multer({ storage: diskStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+  upload = multer({ storage: diskStorage, limits: { fileSize: 200 * 1024 * 1024 } });
 }
 
 // Public registration (no auth required)
@@ -855,6 +855,69 @@ router.post('/change-password', async (req, res) => {
   } catch (err) {
     console.error('Error changing password:', err);
     res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
+// --- Files ---
+router.get('/files', async (req, res) => {
+  const { userId, category } = req.query;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  try {
+    const query = category && category !== 'all'
+      ? 'SELECT f.*, u.name as uploader_name FROM file_library f JOIN users u ON f.uploaded_by = u.id WHERE f.category = $1 ORDER BY f.created_at DESC'
+      : 'SELECT f.*, u.name as uploader_name FROM file_library f JOIN users u ON f.uploaded_by = u.id ORDER BY f.created_at DESC';
+    const params = category && category !== 'all' ? [category] : [];
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching files:', err);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+router.post('/files', upload.single('file'), async (req, res) => {
+  const { userId, title, description, category } = req.body;
+  if (!userId || !title || !req.file) {
+    return res.status(400).json({ error: 'userId, title, and file are required' });
+  }
+
+  try {
+    const filePath = req.file.secure_url || req.file.url || req.file.path;
+    const result = await pool.query(
+      'INSERT INTO file_library (uploaded_by, title, description, category, filename, original_filename, file_path, file_size, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+      [userId, title, description || '', category || 'general', req.file.filename || req.file.public_id, req.file.originalname, filePath, req.file.size || req.file.bytes || 0, req.file.mimetype]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error('Error uploading file:', err);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
+router.delete('/files/:id', async (req, res) => {
+  const fileId = parseInt(req.params.id);
+  const { userId } = req.body;
+  try {
+    const result = await pool.query('DELETE FROM file_library WHERE id = $1 AND uploaded_by = $2', [fileId, userId]);
+    res.json({ success: result.rowCount > 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+router.get('/files/:id/download', async (req, res) => {
+  const fileId = parseInt(req.params.id);
+  try {
+    const result = await pool.query('SELECT * FROM file_library WHERE id = $1', [fileId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'File not found' });
+    const file = result.rows[0];
+    if (file.file_path?.startsWith('http')) {
+      return res.redirect(file.file_path);
+    }
+    res.sendFile(path.resolve(file.file_path));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to download file' });
   }
 });
 
