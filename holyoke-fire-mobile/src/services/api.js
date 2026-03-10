@@ -1,6 +1,5 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import * as FileSystem from 'expo-file-system/legacy';
 
 // IMPORTANT: Update this to your actual Render.com URL
 export const API_URL = 'https://holyoke-fire-connect.onrender.com/api';
@@ -57,29 +56,22 @@ export const getBulletinsByCategory = async (category, userId) => {
 };
 
 export const postBulletin = async (userId, title, body, category, files = []) => {
+  const formData = new FormData();
+  formData.append('userId', String(userId));
+  formData.append('title', title);
+  formData.append('body', body);
+  formData.append('category', category);
 
-  // Convert files to base64
-  const encodedFiles = await Promise.all(
-    files.map(async (file) => {
-      const base64 = await FileSystem.readAsStringAsync(file.uri, {
-  encoding: 'base64',
-});
-      return {
-        name: file.name || 'upload',
-        mimeType: file.mimeType || 'application/octet-stream',
-        base64,
-      };
-    })
-  );
+  files.forEach((file) => {
+    formData.append('files', {
+      uri: file.uri,
+      name: file.name || 'upload',
+      type: file.mimeType || 'application/octet-stream',
+    });
+  });
 
-  const response = await axios.post(`${API_URL}/bulletins/mobile`, {
-    userId,
-    title,
-    body,
-    category,
-    files: encodedFiles,
-  }, {
-    headers: { 'Content-Type': 'application/json' },
+  const response = await axios.post(`${API_URL}/bulletins`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
 };

@@ -140,6 +140,7 @@ export default function ComposeScreen({ user, navigation }) {
           <TextInput
             style={styles.searchInput}
             placeholder="Search users..."
+            placeholderTextColor="#888888"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -207,6 +208,7 @@ export default function ComposeScreen({ user, navigation }) {
           <TextInput
             style={styles.input}
             placeholder="Enter subject..."
+            placeholderTextColor="#888888"
             value={subject}
             onChangeText={setSubject}
             editable={!sending}
@@ -219,6 +221,7 @@ export default function ComposeScreen({ user, navigation }) {
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="Type your message..."
+            placeholderTextColor="#888888"
             value={body}
             onChangeText={setBody}
             multiline
@@ -293,6 +296,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     marginBottom: 12,
+    color: '#000000',
   },
   selectedContainer: {
     marginBottom: 12,
@@ -370,6 +374,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
+    color: '#000000',
   },
   textArea: {
     minHeight: 120,
