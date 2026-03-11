@@ -1198,6 +1198,12 @@ const handleDeleteUser = async (userId) => {
     return filename.toLowerCase().endsWith('.pdf');
   };
 
+  const isVideoFile = (filename, mimeType) => {
+    if (mimeType?.startsWith('video/')) return true;
+    const ext = filename.split('.').pop().toLowerCase();
+    return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
+  };
+
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     if (['doc', 'docx'].includes(ext)) return <FileText className="h-5 w-5 text-blue-600" />;
@@ -1903,6 +1909,24 @@ if (!user) {
                       style={{ height: '500px' }}
                       title={att.original_filename || att.filename}
                     />
+                  </div>
+                ) : isVideoFile(att.filename, att.mime_type) ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {getFileIcon(att.filename)}
+                      <span className="text-sm font-medium">{att.original_filename || att.filename}</span>
+                      <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className="ml-auto">
+                        <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
+                      </button>
+                    </div>
+                    <video
+                      src={att.resolvedUrl}
+                      controls
+                      className="w-full rounded border"
+                      style={{ maxHeight: '400px' }}
+                    >
+                      Your browser does not support video playback.
+                    </video>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -2903,6 +2927,15 @@ disabled={isSaving}
                               alt={file.title}
                               className="w-16 h-16 object-cover rounded border"
                             />
+                          ) : isVideoFile(file.original_filename, file.mime_type) ? (
+                            <video
+                              src={`/api/files/${file.id}/download`}
+                              controls
+                              className="w-full rounded border mt-2"
+                              style={{ maxHeight: '300px' }}
+                            >
+                              Your browser does not support video playback.
+                            </video>
                           ) : (
                             <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
                           )}

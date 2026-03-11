@@ -20,6 +20,7 @@ import { API_URL } from '../services/api';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import RNFS from 'react-native-fs';
+import { Video } from 'expo-av';
 
 const { MediaStoreModule } = NativeModules;
 
@@ -198,6 +199,12 @@ export default function FilesScreen({ user }) {
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   };
 
+  const isVideoFile = (filename, mimeType) => {
+    if (mimeType?.startsWith('video/')) return true;
+    const ext = filename.split('.').pop().toLowerCase();
+    return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
+  };
+
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'image';
@@ -294,6 +301,14 @@ export default function FilesScreen({ user }) {
                       <Image
                         source={{ uri: file.file_path }}
                         style={styles.thumbnail}
+                      />
+                    ) : isVideoFile(file.original_filename, file.mime_type) ? (
+                      <Video
+                        source={{ uri: file.file_path }}
+                        style={{ width: '100%', height: 200, borderRadius: 8 }}
+                        useNativeControls
+                        resizeMode="contain"
+                        shouldPlay={false}
                       />
                     ) : (
                       <Ionicons
