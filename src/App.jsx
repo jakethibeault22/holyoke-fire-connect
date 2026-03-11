@@ -2925,7 +2925,8 @@ disabled={isSaving}
                             <img
                               src={`/api/files/${file.id}/download`}
                               alt={file.title}
-                              className="w-16 h-16 object-cover rounded border"
+                              className="w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-80 transition"
+                              onClick={() => setFullscreenImg(`/api/files/${file.id}/download`)}
                             />
                           ) : isVideoFile(file.original_filename, file.mime_type) ? (
                             <video
@@ -2936,6 +2937,8 @@ disabled={isSaving}
                             >
                               Your browser does not support video playback.
                             </video>
+                          ) : isPDFFile(file.original_filename, file.mime_type) ? (
+                            <FileText className="h-8 w-8 text-red-500" />
                           ) : (
                             <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
                           )}
@@ -2955,6 +2958,27 @@ disabled={isSaving}
                       </div>
                       {file.description && (
                         <p className="text-sm text-gray-600 mb-2">{file.description}</p>
+                      )}
+                      {isImageFile(file.original_filename) && (
+                        <div className="mb-3">
+                          <img
+                            src={`/api/files/${file.id}/download`}
+                            alt={file.title}
+                            className="w-full h-auto rounded border cursor-pointer hover:opacity-90 transition"
+                            style={{ maxHeight: '300px', objectFit: 'contain' }}
+                            onClick={() => setFullscreenImg(`/api/files/${file.id}/download`)}
+                          />
+                        </div>
+                      )}
+                      {isPDFFile(file.original_filename, file.mime_type) && (
+                        <div className="mb-3">
+                          <iframe
+                            src={`/api/files/${file.id}/download`}
+                            className="w-full border rounded"
+                            style={{ height: '400px' }}
+                            title={file.original_filename}
+                          />
+                        </div>
                       )}
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                         <span>{formatFileSize(file.file_size)}</span>

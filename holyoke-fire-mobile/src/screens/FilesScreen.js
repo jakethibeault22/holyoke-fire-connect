@@ -44,6 +44,7 @@ export default function FilesScreen({ user }) {
   const [uploadCategory, setUploadCategory] = useState('general');
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
     loadFiles();
@@ -198,6 +199,8 @@ export default function FilesScreen({ user }) {
   const isPDFFile = (filename) => {
     return filename?.toLowerCase().endsWith('.pdf');
   };
+
+  const isImageFile = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   };
@@ -301,10 +304,12 @@ export default function FilesScreen({ user }) {
                 <View style={styles.fileHeader}>
                   <View style={styles.fileIconContainer}>
                     {isImageFile(file.original_filename) ? (
-                      <Image
-                        source={{ uri: file.file_path }}
-                        style={styles.thumbnail}
-                      />
+                      <TouchableOpacity onPress={() => setLightboxImage(file.file_path)}>
+                        <Image
+                          source={{ uri: file.file_path }}
+                          style={styles.thumbnail}
+                        />
+                      </TouchableOpacity>
                     ) : isVideoFile(file.original_filename, file.mime_type) ? (
                       <Video
                         source={{ uri: file.file_path }}
@@ -341,6 +346,26 @@ export default function FilesScreen({ user }) {
                   </View>
                 </View>
 
+                {isImageFile(file.original_filename) && (
+                  <TouchableOpacity onPress={() => setLightboxImage(file.file_path)} activeOpacity={0.85}>
+                    <Image
+                      source={{ uri: file.file_path }}
+                      style={{ width: '100%', height: 200, borderRadius: 8, marginBottom: 10 }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {isPDFFile(file.original_filename) && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(file.file_path)}
+                    style={{ backgroundColor: '#fef2f2', borderRadius: 8, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  >
+                    <Ionicons name="document-text-outline" size={20} color="#dc2626" />
+                    <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 13 }}>View PDF</Text>
+                  </TouchableOpacity>
+                )}
+
                 <View style={styles.fileActions}>
                   <TouchableOpacity
                     style={styles.downloadButton}
@@ -363,6 +388,24 @@ export default function FilesScreen({ user }) {
             ))
           )}
         </ScrollView>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', zIndex: 999 }}
+          activeOpacity={1}
+          onPress={() => setLightboxImage(null)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <Image
+              source={{ uri: lightboxImage }}
+              style={{ width: 350, height: 350, borderRadius: 8 }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+          <Text style={{ color: 'white', marginTop: 16, fontSize: 13, opacity: 0.7 }}>Tap anywhere to close</Text>
+        </TouchableOpacity>
       )}
 
       {/* Upload Modal */}
