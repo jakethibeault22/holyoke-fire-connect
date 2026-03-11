@@ -130,6 +130,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [fullscreenImg, setFullscreenImg] = useState(null);
+  const [fullscreenPdf, setFullscreenPdf] = useState(null);
   
   useEffect(() => {
     if (user) {
@@ -1879,12 +1880,13 @@ if (!user) {
                       <Download className="h-6 w-6 text-blue-600 hover:text-blue-800" />
                      </button>
                     </div>
-                    <iframe
-                      src={att.resolvedUrl}
-                      className="w-full border rounded"
-                      style={{ height: '500px' }}
-                      title={att.original_filename || att.filename}
-                    />
+                    <button
+                      onClick={() => setFullscreenPdf(att.resolvedUrl)}
+                      className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded hover:bg-red-100 transition font-medium"
+                    >
+                      <FileText className="h-5 w-5" />
+                      View PDF Fullscreen
+                    </button>
                   </div>
                 ) : isVideoFile(att.filename, att.mime_type) ? (
                   <div className="space-y-2">
@@ -2124,12 +2126,13 @@ if (!user) {
                   <Download className="h-4 w-4" />
                 </button>
             </div>
-            <iframe
-              src={att.resolvedUrl}
-              className="w-full border rounded"
-              style={{ height: '400px' }}
-              title={att.filename}
-            />
+            <button
+              onClick={() => setFullscreenPdf(att.resolvedUrl)}
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-xs font-medium transition ${isFromMe ? 'bg-blue-500 text-white hover:bg-blue-400' : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'}`}
+            >
+              <FileText className="h-4 w-4" />
+              View PDF Fullscreen
+            </button>
           </div>
         ) : (
             <button onClick={(e) => handleDownload(e, att.resolvedUrl, att.original_filename || att.filename)} className={`flex items-center gap-2 text-xs ${isFromMe ? 'text-blue-100 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
@@ -2914,7 +2917,9 @@ disabled={isSaving}
                               Your browser does not support video playback.
                             </video>
                           ) : isPDFFile(file.original_filename, file.mime_type) ? (
-                            <FileText className="h-8 w-8 text-red-500" />
+                            <button onClick={() => setFullscreenPdf(`/api/files/${file.id}/download`)}>
+                              <FileText className="h-8 w-8 text-red-500 hover:text-red-700 transition" />
+                            </button>
                           ) : (
                             <span className="text-3xl">{getFileIcon(file.original_filename)}</span>
                           )}
@@ -2938,12 +2943,13 @@ disabled={isSaving}
 
                       {isPDFFile(file.original_filename, file.mime_type) && (
                         <div className="mb-3">
-                          <iframe
-                            src={`/api/files/${file.id}/download`}
-                            className="w-full border rounded"
-                            style={{ height: '400px' }}
-                            title={file.original_filename}
-                          />
+                          <button
+                            onClick={() => setFullscreenPdf(`/api/files/${file.id}/download`)}
+                            className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded hover:bg-red-100 transition font-medium"
+                          >
+                            <FileText className="h-5 w-5" />
+                            View PDF Fullscreen
+                          </button>
                         </div>
                       )}
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
@@ -3381,6 +3387,30 @@ className="w-full p-2 border rounded"
             className="max-w-full max-h-full object-contain"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* Fullscreen PDF Modal */}
+      {fullscreenPdf && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-95 flex flex-col z-[100]"
+          onClick={() => setFullscreenPdf(null)}
+        >
+          <div className="flex items-center justify-end p-3 flex-shrink-0">
+            <button
+              onClick={() => setFullscreenPdf(null)}
+              className="text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-80 transition"
+            >
+              <X className="h-8 w-8" />
+            </button>
+          </div>
+          <div className="flex-1 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+            <iframe
+              src={fullscreenPdf}
+              className="w-full h-full rounded"
+              title="PDF Viewer"
+            />
+          </div>
         </div>
       )}
 
