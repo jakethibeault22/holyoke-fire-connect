@@ -1296,32 +1296,32 @@ if (!user) {
           />
         </div>
       </div>
-	  
-	  {/* Fullscreen Image Modal */}
-{fullscreenImg && (
-  <div 
-    className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50"
-    onClick={() => setFullscreenImg(null)}
-  >
-    <button
-      onClick={() => setFullscreenImg(null)}
-      className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-80 transition"
-    >
-      <X className="h-8 w-8" />
-    </button>
-    <img
-      src={fullscreenImg}
-      alt="Fullscreen"
-      className="max-w-full max-h-full object-contain"
-      onClick={(e) => e.stopPropagation()}
-    />
-  </div>
-)}
 
-	  {/* Copyright footer */}
-    <div className="fixed bottom-2 right-4 text-xs text-gray-400">
-      © Jake Thibeault 2026
-    </div>
+	  {/* Fullscreen Image Modal */}
+      {fullscreenImg && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-[100]"
+          onClick={() => setFullscreenImg(null)}
+        >
+          <button
+            onClick={() => setFullscreenImg(null)}
+            className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-80 transition"
+          >
+            <X className="h-8 w-8" />
+          </button>
+          <img
+            src={fullscreenImg}
+            alt="Fullscreen"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Copyright footer */}
+      <div className="fixed bottom-2 right-4 text-xs text-gray-400">
+        © Jake Thibeault 2026
+      </div>
 
       {/* Registration Modal */}
       {showRegistration && (
