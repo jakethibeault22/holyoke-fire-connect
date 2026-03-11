@@ -14,6 +14,7 @@ import {
   Platform,
   PermissionsAndroid,
   NativeModules,
+  Linking,
 } from 'react-native';
 import { getFiles, deleteFile, uploadFile } from '../services/fileApi';
 import { API_URL } from '../services/api';
@@ -194,7 +195,9 @@ export default function FilesScreen({ user }) {
     }
   };
 
-  const isImageFile = (filename) => {
+  const isPDFFile = (filename) => {
+    return filename?.toLowerCase().endsWith('.pdf');
+  };
     const ext = filename.split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   };
