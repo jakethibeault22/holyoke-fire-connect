@@ -25,6 +25,7 @@ import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Video } from 'expo-av';
 
 export default function InboxScreen({ user, onRefresh }) {
   const [inbox, setInbox] = useState([]);
@@ -232,6 +233,10 @@ const handleFileDownload = async (fileUrl, filename) => {
     att.mime_type === 'application/pdf' ||
     /\.pdf$/i.test(att.filename || '');
 
+  const isVideoFile = (att) =>
+    att.mime_type?.startsWith('video/') ||
+    /\.(mp4|mov|webm|avi|mkv)$/i.test(att.filename || '');
+
   const renderAttachments = (messageId, isFromMe) => {
     const attachments = messageAttachments[messageId];
     if (!attachments || attachments.length === 0) return null;
@@ -240,7 +245,6 @@ const handleFileDownload = async (fileUrl, filename) => {
       <View style={styles.attachmentsContainer}>
         {attachments.map(att => {
           const fileUrl = att.file_path;
-console.log('att object:', JSON.stringify(att));
 
           if (isImageFile(att)) {
             return (
@@ -254,7 +258,21 @@ console.log('att object:', JSON.stringify(att));
                   style={styles.attachmentImage}
                   resizeMode="cover"
                 />
+                <Text style={{ textAlign: 'center', fontSize: 11, color: isFromMe ? 'rgba(255,255,255,0.7)' : COLORS.gray500, marginTop: 2 }}>Tap to view fullscreen</Text>
               </TouchableOpacity>
+            );
+          }
+
+          if (isVideoFile(att)) {
+            return (
+              <Video
+                key={att.id}
+                source={{ uri: fileUrl }}
+                style={{ width: '100%', height: 200, borderRadius: 8, marginTop: 6 }}
+                useNativeControls
+                resizeMode="contain"
+                shouldPlay={false}
+              />
             );
           }
 

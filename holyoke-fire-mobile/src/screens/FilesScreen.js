@@ -45,6 +45,7 @@ export default function FilesScreen({ user }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [fileSearch, setFileSearch] = useState('');
 
   useEffect(() => {
     loadFiles();
@@ -234,18 +235,35 @@ export default function FilesScreen({ user }) {
 
   return (
     <View style={styles.container}>
-      {/* Upload Button */}
-      {isAdmin && (
-        <View style={styles.uploadButtonContainer}>
-          <TouchableOpacity
-            style={styles.uploadButton}
-            onPress={() => setShowUploadModal(true)}
-          >
-            <Ionicons name="cloud-upload-outline" size={20} color="white" />
-            <Text style={styles.uploadButtonText}>Upload File</Text>
-          </TouchableOpacity>
+      {/* Upload Button + Search */}
+      <View style={styles.uploadButtonContainer}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#d1d5db' }}>
+            <Ionicons name="search-outline" size={16} color="#6b7280" />
+            <TextInput
+              style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 6, fontSize: 14, color: '#000' }}
+              placeholder="Search files..."
+              placeholderTextColor="#9ca3af"
+              value={fileSearch}
+              onChangeText={setFileSearch}
+            />
+            {fileSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setFileSearch('')}>
+                <Ionicons name="close-circle" size={16} color="#9ca3af" />
+              </TouchableOpacity>
+            )}
+          </View>
+          {isAdmin && (
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => setShowUploadModal(true)}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color="white" />
+              <Text style={styles.uploadButtonText}>Upload</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
+      </View>
 
       {/* Category Tabs */}
       <View style={styles.categoryTabsContainer}>
@@ -293,13 +311,31 @@ export default function FilesScreen({ user }) {
             />
           }
         >
-          {files.length === 0 ? (
+          {files.filter(file => {
+            if (!fileSearch.trim()) return true;
+            const q = fileSearch.toLowerCase();
+            return (
+              file.title?.toLowerCase().includes(q) ||
+              file.description?.toLowerCase().includes(q) ||
+              file.original_filename?.toLowerCase().includes(q) ||
+              file.category?.toLowerCase().includes(q)
+            );
+          }).length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="folder-open-outline" size={64} color={COLORS.gray300} />
-              <Text style={styles.emptyText}>No files</Text>
+              <Text style={styles.emptyText}>{fileSearch ? `No results for "${fileSearch}"` : 'No files'}</Text>
             </View>
           ) : (
-            files.map(file => (
+            files.filter(file => {
+              if (!fileSearch.trim()) return true;
+              const q = fileSearch.toLowerCase();
+              return (
+                file.title?.toLowerCase().includes(q) ||
+                file.description?.toLowerCase().includes(q) ||
+                file.original_filename?.toLowerCase().includes(q) ||
+                file.category?.toLowerCase().includes(q)
+              );
+            }).map(file => (
               <View key={file.id} style={styles.fileCard}>
                 <View style={styles.fileHeader}>
                   <View style={styles.fileIconContainer}>

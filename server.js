@@ -64,6 +64,15 @@ app.get('*', (req, res) => {
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
   
+  // Auto-initialize database tables on startup
+  try {
+    const { initDatabase } = require('./scripts/init-db');
+    await initDatabase();
+    console.log('✔ Database initialized');
+  } catch (err) {
+    console.error('✗ Database init error:', err.message);
+  }
+  
   // Ensure super admin user exists (safe - only creates if missing)
   const { pool } = require('./config/db');
   const crypto = require('crypto');

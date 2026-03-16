@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { getUsers, sendMessage } from '../services/api';
 import { COLORS, ROLE_LABELS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ export default function ComposeScreen({ user, navigation }) {
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState([]);
 
   useEffect(() => {
     loadUsers();
@@ -30,7 +32,7 @@ export default function ComposeScreen({ user, navigation }) {
     setLoading(true);
     try {
       const data = await getUsers();
-      const activeUsers = Array.isArray(data) 
+      const activeUsers = Array.isArray(data)
         ? data.filter(u => u.status === 'active' && u.id !== user.id)
         : [];
       setUsers(activeUsers);
@@ -60,6 +62,25 @@ export default function ComposeScreen({ user, navigation }) {
     setSelectedRecipients([]);
   };
 
+  const pickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (!result.canceled && result.assets) {
+        setAttachedFiles(prev => [...prev, ...result.assets]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Could not pick file: ' + err.message);
+    }
+  };
+
+  const removeFile = (index) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = async () => {
     if (selectedRecipients.length === 0) {
       Alert.alert('Error', 'Please select at least one recipient');
@@ -82,8 +103,16 @@ export default function ComposeScreen({ user, navigation }) {
       formData.append('subject', subject);
       formData.append('body', body);
 
+      attachedFiles.forEach(file => {
+        formData.append('files', {
+          uri: file.uri,
+          name: file.name || 'attachment',
+          type: file.mimeType || 'application/octet-stream',
+        });
+      });
+
       const result = await sendMessage(formData);
-      
+
       if (result.success) {
         Alert.alert('Success', 'Message sent successfully!', [
           {
@@ -93,7 +122,7 @@ export default function ComposeScreen({ user, navigation }) {
               setSubject('');
               setBody('');
               setSearchQuery('');
-              // Navigate to Inbox
+              setAttachedFiles([]);
               navigation.navigate('Inbox');
             },
           },
@@ -122,6 +151,7 @@ export default function ComposeScreen({ user, navigation }) {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content}>
+
         {/* Recipients Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -136,7 +166,6 @@ export default function ComposeScreen({ user, navigation }) {
             </View>
           </View>
 
-          {/* Search */}
           <TextInput
             style={styles.searchInput}
             placeholder="Search users..."
@@ -145,7 +174,6 @@ export default function ComposeScreen({ user, navigation }) {
             onChangeText={setSearchQuery}
           />
 
-          {/* Selected Recipients */}
           {selectedRecipients.length > 0 && (
             <View style={styles.selectedContainer}>
               <Text style={styles.selectedLabel}>
@@ -167,7 +195,6 @@ export default function ComposeScreen({ user, navigation }) {
             </View>
           )}
 
-          {/* User List - Only show when searching */}
           {searchQuery.trim() !== '' && (
             loading ? (
               <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
@@ -231,6 +258,27 @@ export default function ComposeScreen({ user, navigation }) {
           />
         </View>
 
+        {/* Attachments */}
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.attachButton} onPress={pickFile} disabled={sending}>
+            <Ionicons name="attach" size={20} color={COLORS.primary} />
+            <Text style={styles.attachButtonText}>Attach Files</Text>
+          </TouchableOpacity>
+          {attachedFiles.length > 0 && (
+            <View style={{ marginTop: 10, gap: 6 }}>
+              {attachedFiles.map((file, index) => (
+                <View key={index} style={styles.attachedFileRow}>
+                  <Ionicons name="document-outline" size={16} color={COLORS.gray600} />
+                  <Text style={styles.attachedFileName} numberOfLines={1}>{file.name}</Text>
+                  <TouchableOpacity onPress={() => removeFile(index)}>
+                    <Ionicons name="close-circle" size={18} color={COLORS.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Send Button */}
         <TouchableOpacity
           style={[styles.sendButton, sending && styles.sendButtonDisabled]}
@@ -246,6 +294,7 @@ export default function ComposeScreen({ user, navigation }) {
             </>
           )}
         </TouchableOpacity>
+
       </ScrollView>
     </View>
   );
@@ -396,5 +445,34 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  attachButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  attachButtonText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  attachedFileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.gray100,
+    borderRadius: 6,
+    padding: 8,
+  },
+  attachedFileName: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.gray800,
   },
 });

@@ -25,6 +25,7 @@ import {
 } from '../services/api';
 import { CATEGORIES, COLORS, ROLE_LABELS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { Video } from 'expo-av';
 
 export default function BulletinsScreen({ user, onLogout }) {
   const [selectedCategory, setSelectedCategory] = useState('west-wing');
@@ -43,6 +44,7 @@ export default function BulletinsScreen({ user, onLogout }) {
   const [posting, setPosting] = useState(false);
   const [viewingBulletin, setViewingBulletin] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [fullscreenPdf, setFullscreenPdf] = useState(null);
 
   useEffect(() => {
     loadBulletins();
@@ -502,6 +504,8 @@ export default function BulletinsScreen({ user, onLogout }) {
                         /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
                     const isPDF = attachment.mime_type === 'application/pdf' ||
                         /\.pdf$/i.test(name);
+                    const isVideo = attachment.mime_type?.startsWith('video/') ||
+                        /\.(mp4|mov|webm|avi|mkv)$/i.test(name);
 
                     const fileUrl =
                       API_URL && viewingBulletin?.id && attachment?.id
@@ -512,7 +516,7 @@ export default function BulletinsScreen({ user, onLogout }) {
                       <View key={idx} style={styles.attachmentViewContainer}>
                         <View style={styles.attachmentViewHeader}>
                           <Ionicons
-                            name={isImage ? 'image' : isPDF ? 'document-text' : 'document'}
+                            name={isImage ? 'image' : isPDF ? 'document-text' : isVideo ? 'videocam' : 'document'}
                             size={18}
                             color={COLORS.gray600}
                           />
@@ -533,17 +537,35 @@ export default function BulletinsScreen({ user, onLogout }) {
                           ) : (
                             <Text style={{ color: COLORS.error }}>Image unavailable</Text>
                           )
+                        ) : isVideo ? (
+                          fileUrl ? (
+                            <Video
+                              source={{ uri: fileUrl }}
+                              style={{ width: '100%', height: 220, borderRadius: 8, marginTop: 8 }}
+                              useNativeControls
+                              resizeMode="contain"
+                              shouldPlay={false}
+                            />
+                          ) : (
+                            <Text style={{ color: COLORS.error }}>Video unavailable</Text>
+                          )
+                        ) : isPDF ? (
+                          <TouchableOpacity
+                            style={styles.downloadButton}
+                            onPress={() => {
+                              if (!fileUrl) { Alert.alert('Error', 'Invalid file URL'); return; }
+                              Linking.openURL(fileUrl).catch(err => Alert.alert('Error', 'Could not open PDF: ' + err.message));
+                            }}
+                          >
+                            <Ionicons name="document-text-outline" size={20} color="#dc2626" />
+                            <Text style={[styles.downloadButtonText, { color: '#dc2626' }]}>View PDF</Text>
+                          </TouchableOpacity>
                         ) : (
                           <TouchableOpacity
                             style={styles.downloadButton}
                             onPress={() => {
-                              if (!fileUrl) {
-                                Alert.alert('Error', 'Invalid file URL');
-                                return;
-                              }
-                              Linking.openURL(fileUrl).catch((err) =>
-                                Alert.alert('Error', 'Could not open file: ' + err.message)
-                              );
+                              if (!fileUrl) { Alert.alert('Error', 'Invalid file URL'); return; }
+                              Linking.openURL(fileUrl).catch(err => Alert.alert('Error', 'Could not open file: ' + err.message));
                             }}
                           >
                             <Ionicons name="download-outline" size={20} color={COLORS.primary} />
