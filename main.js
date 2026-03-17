@@ -150,7 +150,7 @@ switch(category) {
     case 'fire-prevention':
       return userRoles.some(role => role === 'fire_prevention' || getRoleLevel(role) >= getRoleLevel('fire_chief'));
     case 'repair-division':
-      return userRoles.some(role => role === 'repair_division_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
+      return userRoles.some(role => role === 'repair_division_supervisor' || getRoleLevel(role) >= getRoleLevel('fire_chief'));
     case 'alarm-division':
       return userRoles.some(role => role === 'alarm_supervisor' || getRoleLevel(role) >= getRoleLevel('chief'));
     case 'commissioners':
