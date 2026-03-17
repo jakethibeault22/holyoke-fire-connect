@@ -1714,7 +1714,7 @@ if (!user) {
   </div>
 
   {/* Post Bulletin button - full width below categories */}
-  {(bulletinPermissions.canPost || user.role === 'admin') && (
+  {bulletinPermissions.canPost && (
     <button
       onClick={() => {
         setBulletinCategory(selectedBulletinCategory);
