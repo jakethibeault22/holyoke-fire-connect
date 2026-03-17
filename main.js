@@ -98,7 +98,7 @@ async function canViewBulletin(userId, category) {
   const user = await getUserById(userId);
   if (!user) return false;
   
-  const userRoles = user.roles || [user.role];
+  const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
   
   // Admin and Super User can view everything
   if (userRoles.includes('admin') || userRoles.includes('super_user')) {
@@ -132,7 +132,7 @@ async function canPostBulletin(userId, category) {
   const user = await getUserById(userId);
   if (!user) return false;
   
-  const userRoles = user.roles || [user.role];
+  const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
   
   // Admin and Super User can post everywhere
   if (userRoles.includes('admin') || userRoles.includes('super_user')) {
@@ -167,7 +167,7 @@ async function canDeleteBulletin(userId, category) {
   const user = await getUserById(userId);
   if (!user) return false;
   
-  const userRoles = user.roles || [user.role];
+  const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
   
   // Admin and Super User can delete everything
   if (userRoles.includes('admin') || userRoles.includes('super_user')) {
