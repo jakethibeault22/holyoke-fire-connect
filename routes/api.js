@@ -305,24 +305,6 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
   }
 });
 
-// Get bulletins by category with role-based filtering
-router.get('/bulletins/category/:category', async (req, res) => {
-  const category = req.params.category;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-  
-  const user = await getUserById(parseInt(userId));
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  
-  const bulletins = await getBulletinsByCategory(category, parseInt(userId));
-  res.json(bulletins);
-});
-
 // Check bulletin permissions endpoint
 router.get('/bulletins/permissions/:category', async (req, res) => {
   const category = req.params.category;
@@ -342,6 +324,35 @@ router.get('/bulletins/permissions/:category', async (req, res) => {
     canPost: await canPostBulletin(parseInt(userId), category),
     canDelete: await canDeleteBulletin(parseInt(userId), category)
   });
+});
+
+// Get bulletins by category with role-based filtering
+router.get('/bulletins/category/:category', async (req, res) => {
+  const category = req.params.category;
+  const userId = req.query.userId;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  const user = await getUserById(parseInt(userId));
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  const bulletins = await getBulletinsByCategory(category, parseInt(userId));
+  res.json(bulletins);
+});
+
+router.delete('/bulletins/:id', async (req, res) => {
+  const bulletinId = parseInt(req.params.id);
+  const { userId } = req.body;
+  const result = await deleteBulletin(bulletinId, userId);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
 });
 
 router.delete('/bulletins/:id', async (req, res) => {
