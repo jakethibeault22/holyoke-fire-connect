@@ -5,6 +5,29 @@ const path = require('path');
 const fs = require('fs');
 const { pool } = require('../config/db');
 
+// Send Expo push notification
+async function sendPushNotification(tokens, title, body) {
+  const messages = tokens
+    .filter(t => t && t.startsWith('ExponentPushToken'))
+    .map(token => ({
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data: {},
+    }));
+  if (messages.length === 0) return;
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages),
+    });
+  } catch (err) {
+    console.error('Push notification error:', err.message);
+  }
+}
+
 const { 
   loginUser, 
   getUserById, 
@@ -285,6 +308,18 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
     res.status(403).json(result);
   } else {
     const bulletinId = result.lastInsertRowid;
+
+    // Send push notifications to all users with tokens
+    try {
+      const tokenResult = await pool.query(
+        'SELECT expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND status = $1',
+        ['active']
+      );
+      const tokens = tokenResult.rows.map(r => r.expo_push_token);
+      await sendPushNotification(tokens, `New Bulletin: ${title}`, body.substring(0, 100));
+    } catch (err) {
+      console.error('Error sending bulletin push:', err.message);
+    }
     
     // FIX: use Cloudinary URL (secure_url) with fallback to local path
     if (req.files && req.files.length > 0) {
@@ -301,6 +336,31 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
       }
     }
     
+    // Send push notifications
+    try {
+      const tokenResult = await pool.query(
+        "SELECT expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND status = 'active'"
+      );
+      const messages = tokenResult.rows
+        .map(r => r.expo_push_token)
+        .filter(t => t && t.startsWith('ExponentPushToken'))
+        .map(token => ({
+          to: token,
+          sound: 'default',
+          title: `New Bulletin: ${title}`,
+          body: body.substring(0, 100),
+        }));
+      if (messages.length > 0) {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(messages),
+        });
+      }
+    } catch (err) {
+      console.error('Push error:', err.message);
+    }
+
     res.json({ success: true, id: bulletinId });
   }
 });
@@ -487,6 +547,50 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
       }
     }
     
+    // Send push notification to recipients
+    try {
+      const parsedRecipients = JSON.parse(to);
+      const tokenResult = await pool.query(
+        'SELECT expo_push_token FROM users WHERE id = ANY($1) AND expo_push_token IS NOT NULL',
+        [parsedRecipients]
+      );
+      const tokens = tokenResult.rows.map(r => r.expo_push_token);
+      const senderResult = await pool.query('SELECT name FROM users WHERE id = $1', [senderId]);
+      const senderName = senderResult.rows[0]?.name || 'Someone';
+      await sendPushNotification(tokens, `New Message from ${senderName}`, subject);
+    } catch (err) {
+      console.error('Error sending message push:', err.message);
+    }
+
+    // Send push notifications to recipients
+    try {
+      const parsedRecipients = JSON.parse(to);
+      const tokenResult = await pool.query(
+        'SELECT expo_push_token FROM users WHERE id = ANY($1) AND expo_push_token IS NOT NULL',
+        [parsedRecipients]
+      );
+      const senderResult = await pool.query('SELECT name FROM users WHERE id = $1', [parseInt(senderId)]);
+      const senderName = senderResult.rows[0]?.name || 'Someone';
+      const messages = tokenResult.rows
+        .map(r => r.expo_push_token)
+        .filter(t => t && t.startsWith('ExponentPushToken'))
+        .map(token => ({
+          to: token,
+          sound: 'default',
+          title: `New Message from ${senderName}`,
+          body: subject,
+        }));
+      if (messages.length > 0) {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(messages),
+        });
+      }
+    } catch (err) {
+      console.error('Push error:', err.message);
+    }
+
     res.json({ success: true, threadId: result.threadId, messageId: messageId });
   } catch (err) {
     console.error('Error sending message:', err);
@@ -744,6 +848,32 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
     res.status(403).json(result);
   } else {
     res.json({ success: result.changes > 0 });
+  }
+});
+
+// Save Expo push token
+router.post('/users/:id/push-token', async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query('UPDATE users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save token' });
+  }
+});
+
+// Save Expo push token
+router.post('/users/:id/push-token', async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query('UPDATE users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save token' });
   }
 });
 

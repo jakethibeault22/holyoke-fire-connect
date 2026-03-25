@@ -160,8 +160,7 @@ export default function App() {
       console.error('Error loading notification counts:', error);
     }
 	// Update app icon badge
-    const totalUnread = unreadBulletins + unreadMessages;
-    await Notifications.setBadgeCountAsync(totalUnread);
+    await Notifications.setBadgeCountAsync(unreadCount);
   };
 
   const handleLogin = (userData) => {

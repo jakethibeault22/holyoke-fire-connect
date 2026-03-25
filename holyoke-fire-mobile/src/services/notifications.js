@@ -53,7 +53,7 @@ export async function registerForPushNotificationsAsync() {
 export async function savePushToken(userId, pushToken) {
   try {
     await axios.post(`${API_URL}/users/${userId}/push-token`, {
-      pushToken,
+      token: pushToken,
     });
     console.log('Push token saved to backend');
   } catch (error) {
