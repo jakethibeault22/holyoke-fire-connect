@@ -308,18 +308,6 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
     res.status(403).json(result);
   } else {
     const bulletinId = result.lastInsertRowid;
-
-    // Send push notifications to all users with tokens
-    try {
-      const tokenResult = await pool.query(
-        'SELECT expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND status = $1',
-        ['active']
-      );
-      const tokens = tokenResult.rows.map(r => r.expo_push_token);
-      await sendPushNotification(tokens, `New Bulletin: ${title}`, body.substring(0, 100));
-    } catch (err) {
-      console.error('Error sending bulletin push:', err.message);
-    }
     
     // FIX: use Cloudinary URL (secure_url) with fallback to local path
     if (req.files && req.files.length > 0) {
@@ -402,17 +390,6 @@ router.get('/bulletins/category/:category', async (req, res) => {
   
   const bulletins = await getBulletinsByCategory(category, parseInt(userId));
   res.json(bulletins);
-});
-
-router.delete('/bulletins/:id', async (req, res) => {
-  const bulletinId = parseInt(req.params.id);
-  const { userId } = req.body;
-  const result = await deleteBulletin(bulletinId, userId);
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
-  }
 });
 
 router.delete('/bulletins/:id', async (req, res) => {
@@ -547,20 +524,6 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
       }
     }
     
-    // Send push notification to recipients
-    try {
-      const parsedRecipients = JSON.parse(to);
-      const tokenResult = await pool.query(
-        'SELECT expo_push_token FROM users WHERE id = ANY($1) AND expo_push_token IS NOT NULL',
-        [parsedRecipients]
-      );
-      const tokens = tokenResult.rows.map(r => r.expo_push_token);
-      const senderResult = await pool.query('SELECT name FROM users WHERE id = $1', [senderId]);
-      const senderName = senderResult.rows[0]?.name || 'Someone';
-      await sendPushNotification(tokens, `New Message from ${senderName}`, subject);
-    } catch (err) {
-      console.error('Error sending message push:', err.message);
-    }
 
     // Send push notifications to recipients
     try {
@@ -848,19 +811,6 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
     res.status(403).json(result);
   } else {
     res.json({ success: result.changes > 0 });
-  }
-});
-
-// Save Expo push token
-router.post('/users/:id/push-token', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'token required' });
-  try {
-    await pool.query('UPDATE users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to save token' });
   }
 });
 
