@@ -335,8 +335,8 @@ router.post('/bulletins', upload.array('files', 5), async (req, res) => {
         .map(token => ({
           to: token,
           sound: 'default',
-          title: `New Bulletin: ${title}`,
-          body: body.substring(0, 100),
+          title: `New Bulletin - ${category === 'west-wing' ? 'Chiefs' : category === 'fire-prevention' ? 'Fire Prevention' : category === 'repair-division' ? 'Repair Division' : category === 'alarm-division' ? 'Alarm Division' : category === 'commissioners' ? 'Commissioners' : category.charAt(0).toUpperCase() + category.slice(1)}`,
+          body: `${title}: ${body.substring(0, 80)}`,
         }));
       if (messages.length > 0) {
         await fetch('https://exp.host/--/api/v2/push/send', {
@@ -527,10 +527,9 @@ router.post('/messages', upload.array('files', 5), async (req, res) => {
 
     // Send push notifications to recipients
     try {
-      const parsedRecipients = JSON.parse(to);
       const tokenResult = await pool.query(
         'SELECT expo_push_token FROM users WHERE id = ANY($1) AND expo_push_token IS NOT NULL',
-        [parsedRecipients]
+        [recipients]
       );
       const senderResult = await pool.query('SELECT name FROM users WHERE id = $1', [parseInt(senderId)]);
       const senderName = senderResult.rows[0]?.name || 'Someone';
