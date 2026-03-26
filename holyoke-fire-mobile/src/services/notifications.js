@@ -29,19 +29,28 @@ export async function registerForPushNotificationsAsync() {
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    
+
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    
+
     if (finalStatus !== 'granted') {
       alert('Failed to get push notification permissions!');
       return;
     }
-    
-    token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log('Push token:', token);
+
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: 'f891c68f-6374-4913-808e-cc03aabd9177'
+      });
+      token = tokenData.data;
+      console.log('Push token:', token);
+    } catch (e) {
+      console.error('Error getting push token:', e.message);
+      alert('Token error: ' + e.message);
+      return;
+    }
   } else {
     alert('Must use physical device for Push Notifications');
   }

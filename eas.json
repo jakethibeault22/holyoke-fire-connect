@@ -1,4 +1,4 @@
-{
+Set-Content eas.json '{
   "cli": {
     "version": ">= 18.0.1",
     "appVersionSource": "remote"
@@ -24,4 +24,4 @@
   "submit": {
     "production": {}
   }
-}
+}'
