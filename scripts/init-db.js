@@ -67,6 +67,9 @@ async function initDatabase() {
       )
     `);
 
+        // Seconds each bulletin stays on screen (0 = automatic, based on length)
+    await client.query('ALTER TABLE display_keys ADD COLUMN IF NOT EXISTS rotate_seconds INTEGER DEFAULT 0');
+
     // Messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (

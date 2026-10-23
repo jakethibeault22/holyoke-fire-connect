@@ -155,6 +155,7 @@ const publicRoutes = ['/login', '/register', '/logout', '/request-password-reset
 // Firehouse display options
 const DISPLAY_DURATIONS = [60, 240, 720, 1440, 4320, 10080]; // minutes: 1h, 4h, 12h, 24h, 3d, 7d
 const NO_DISPLAY_CATEGORIES = ['commissioners'];             // never shown on the wall TVs
+const ROTATE_OPTIONS = [0, 10, 15, 20, 30, 45, 60, 90, 120]; // seconds per bulletin (0 = automatic)
 
 const requireAuth = async (req, res, next) => {
   if (publicRoutes.includes(req.path)) {
@@ -557,7 +558,7 @@ router.get('/display/feed', h(async (req, res) => {
   if (!key) return res.status(401).json({ error: 'Display key required' });
 
   const device = await pool.query(
-    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHERE key_hash = $1 AND revoked_at IS NULL RETURNING id',
+    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHE    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHERE key_hash = $1 AND revoked_at IS NULL RETURNING id, rotate_seconds',RE key_hash = $1 AND revoked_at IS NULL RETURNING id, rotate_seconds',
     [hashDisplayKey(key)]
   );
   if (device.rows.length === 0) return res.status(401).json({ error: 'Invalid display key' });
@@ -573,7 +574,8 @@ router.get('/display/feed', h(async (req, res) => {
     LIMIT 20
   `);
 
-  res.json({
+    res.json({
+    rotate_seconds: device.rows[0].rotate_seconds || 0,
     bulletins: result.rows.map(b => ({
       ...b,
       category_label: CATEGORY_LABELS[b.category] || (b.category.charAt(0).toUpperCase() + b.category.slice(1))
@@ -584,7 +586,7 @@ router.get('/display/feed', h(async (req, res) => {
 router.get('/display/keys', h(async (req, res) => {
   if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
   const result = await pool.query(`
-    SELECT id, name, created_at,
+        SELECT id, name, created_at, COALESCE(rotate_seconds, 0) AS rotate_seconds,
            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_seen))::int AS seen_ago_s
     FROM display_keys
     WHERE revoked_at IS NULL
@@ -611,6 +613,22 @@ router.post('/display/keys', h(async (req, res) => {
     [name, hashDisplayKey(key)]
   );
   res.json({ id: result.rows[0].id, name: result.rows[0].name, key });
+}));
+
+router.patch('/display/keys/:id', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+
+  const seconds = parseInt(req.body.rotate_seconds, 10);
+  if (!ROTATE_OPTIONS.includes(seconds)) {
+    return res.status(400).json({ error: 'Invalid rotation time' });
+  }
+
+  const result = await pool.query(
+    'UPDATE display_keys SET rotate_seconds = $1 WHERE id = $2 AND revoked_at IS NULL',
+    [seconds, parseInt(req.params.id, 10) || 0]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Display not found' });
+  res.json({ success: true });
 }));
 
 router.delete('/display/keys/:id', h(async (req, res) => {

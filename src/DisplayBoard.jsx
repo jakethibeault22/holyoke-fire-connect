@@ -25,7 +25,8 @@ function readKey() {
   return key;
 }
 
-function dwellMs(b) {
+function dwellMs(b, rotateSec) {
+  if (rotateSec > 0) return rotateSec * 1000;   // fixed time chosen by the admin
   const len = (b.title || '').length + (b.body || '').length;
   return Math.min(40000, Math.max(10000, 8000 + len * 40));
 }
@@ -49,6 +50,7 @@ export default function DisplayBoard() {
   const [idx, setIdx] = useState(0);
   const [status, setStatus] = useState(key ? 'loading' : 'nokey');
   const [now, setNow] = useState(Date.now());
+  const [rotateSec, setRotateSec] = useState(0);
   const knownIds = useRef(null);
 
   // Clock tick (also drives expiry, so a bulletin disappears the second it expires)
@@ -90,6 +92,7 @@ export default function DisplayBoard() {
         knownIds.current = new Set(list.map(b => b.id));
 
         setItems(list);
+        setRotateSec(Number(data.rotate_seconds) || 0);
         setStatus('ok');
       } catch (err) {
         if (!stopped) setStatus(s => (s === 'unauthorized' ? s : 'offline'));
@@ -125,9 +128,9 @@ export default function DisplayBoard() {
   // Rotate through the active bulletins
   useEffect(() => {
     if (active.length < 2 || !cur) return undefined;
-    const t = setTimeout(() => setIdx(i => (i + 1) % active.length), dwellMs(cur));
+        const t = setTimeout(() => setIdx(i => (i + 1) % active.length), dwellMs(cur, rotateSec));
     return () => clearTimeout(t);
-  }, [safeIdx, cur && cur.id, active.length]);
+  }, [safeIdx, cur && cur.id, active.length, rotateSec]);
 
   const time = new Date(now);
   const clock = time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -221,9 +224,9 @@ export default function DisplayBoard() {
       <div className="relative bg-slate-900" style={{ height: '5vh' }}>
         {cur && active.length > 1 && (
           <div
-            key={`${cur.id}-${safeIdx}`}
+            key={`${cur.id}-${safeIdx}-${rotateSec}`}
             className="absolute left-0 top-0 bg-red-600"
-            style={{ height: '0.8vh', animation: `dispBar ${dwellMs(cur)}ms linear forwards` }}
+            style={{ height: '0.8vh', animation: `dispBar ${dwellMs(cur, rotateSec)}ms linear forwards` }}
           />
         )}
         <div className="h-full flex items-center justify-between px-[4vw] text-slate-500" style={{ fontSize: '2vh' }}>

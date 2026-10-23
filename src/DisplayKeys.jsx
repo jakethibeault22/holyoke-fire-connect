@@ -69,6 +69,19 @@ export default function DisplayKeys() {
     load();
   };
 
+  const setRotate = async (k, seconds) => {
+    try {
+      await fetch(`/api/display/keys/${k.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rotate_seconds: seconds })
+      });
+    } catch (err) {
+      console.error('Error saving rotation time:', err);
+    }
+    load();
+  };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(created.url);
@@ -114,9 +127,29 @@ export default function DisplayKeys() {
               <div className="font-semibold">{k.name}</div>
               <div className="text-xs text-gray-500">{seenText(k.seen_ago_s)}</div>
             </div>
-            <button onClick={() => revoke(k)} className="text-red-600 text-sm font-semibold hover:underline">
-              Revoke
-            </button>
+                        <div className="flex items-center gap-3">
+              <label className="text-xs text-gray-500">
+                Time per bulletin
+                <select
+                  value={k.rotate_seconds || 0}
+                  onChange={(e) => setRotate(k, Number(e.target.value))}
+                  className="block mt-1 p-1 border rounded text-sm text-gray-800 bg-white"
+                >
+                  <option value={0}>Automatic (by length)</option>
+                  <option value={10}>10 seconds</option>
+                  <option value={15}>15 seconds</option>
+                  <option value={20}>20 seconds</option>
+                  <option value={30}>30 seconds</option>
+                  <option value={45}>45 seconds</option>
+                  <option value={60}>1 minute</option>
+                  <option value={90}>90 seconds</option>
+                  <option value={120}>2 minutes</option>
+                </select>
+              </label>
+              <button onClick={() => revoke(k)} className="text-red-600 text-sm font-semibold hover:underline">
+                Revoke
+              </button>
+            </div>
           </div>
         ))}
       </div>
