@@ -3,45 +3,22 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
-// Send Expo push notification
-async function sendPushNotification(tokens, title, body) {
-  const messages = tokens
-    .filter(t => t && t.startsWith('ExponentPushToken'))
-    .map(token => ({
-      to: token,
-      sound: 'default',
-      title,
-      body,
-      data: {},
-    }));
-  if (messages.length === 0) return;
-  try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(messages),
-    });
-  } catch (err) {
-    console.error('Push notification error:', err.message);
-  }
-}
-
-const { 
-  loginUser, 
-  getUserById, 
+const {
+  loginUser,
+  getUserById,
   getUsers,
   getPendingUsers,
   registerUser,
   approveUser,
   rejectUser,
-  getBulletins,
-  getBulletinsByCategory, 
+  getBulletinsByCategory,
   addBulletin,
   deleteBulletin,
-  getInbox, 
-  getSent, 
+  getInbox,
+  getSent,
   sendMessage,
   getThreadMessages,
   deleteMessage,
@@ -53,59 +30,173 @@ const {
   updateUser,
   deleteUser,
   resetPassword,
+  changePassword,
+  verifyPassword,
   canViewBulletin,
   canPostBulletin,
   canDeleteBulletin,
   getUsersByRole
 } = require('../main');
 
-// Public routes that don't require authentication
-const publicRoutes = ['/login', '/register'];
+// ---------------------------------------------------------------------------
+// Session configuration
+//   Web app:    httpOnly cookie (JavaScript can't read it)
+//   Mobile app: send  client: 'mobile'  in the login body, store the returned
+//               token, and send it as  Authorization: Bearer <token>
+// ---------------------------------------------------------------------------
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+  throw new Error('SESSION_SECRET environment variable must be set (32+ characters)');
+}
 
-// Routes that should skip auth (authenticated in other ways)
-const skipAuthRoutes = ['/users', '/users/by-role'];
+const COOKIE_NAME = 'hfc_session';
+const WEB_SESSION_HOURS = 12;
+const MOBILE_SESSION_DAYS = 30;
+const MIN_PASSWORD = 8;
 
-// Middleware to check authentication for non-public routes
-const requireAuth = (req, res, next) => {
-  // Skip auth for public routes
-  if (publicRoutes.some(route => req.path === route)) {
-    return next();
+const cookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/'
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Express 4 does not catch rejected promises; this forwards them to the error handler
+const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+const rolesOf = (u) => u.roles || [u.role];
+const isAdminUser = (u) => rolesOf(u).some(r => r === 'admin' || r === 'super_user');
+const isChiefOrAdmin = (u) => rolesOf(u).some(r => r === 'fire_chief' || r === 'admin' || r === 'super_user');
+
+async function userCanViewBulletinId(user, bulletinId) {
+  const r = await pool.query('SELECT category FROM bulletins WHERE id = $1', [bulletinId]);
+  if (r.rows.length === 0) return false;
+  return canViewBulletin(user.id, r.rows[0].category);
+}
+
+async function userInThread(userId, threadId) {
+  const r = await pool.query(
+    'SELECT 1 FROM thread_participants WHERE thread_id = $1 AND user_id = $2',
+    [threadId, userId]
+  );
+  return r.rows.length > 0;
+}
+
+async function userInThreadOfMessage(userId, messageId) {
+  const r = await pool.query(
+    `SELECT 1 FROM messages m
+     JOIN thread_participants tp ON tp.thread_id = m.thread_id
+     WHERE m.id = $1 AND tp.user_id = $2`,
+    [messageId, userId]
+  );
+  return r.rows.length > 0;
+}
+
+// Locally stored files: only these types may render inline. Everything else is
+// forced to download so an uploaded .html/.svg can never run script on our origin.
+const INLINE_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf'];
+
+// Serves an attachment/library file: Cloudinary (http) files redirect,
+// legacy local files are sent from disk.
+function sendStoredFile(res, record) {
+  if (record.file_path && record.file_path.startsWith('http')) {
+    return res.redirect(record.file_path);
   }
-  
-  // Skip auth for certain routes (they handle their own auth)
-  if (skipAuthRoutes.some(route => req.path.startsWith(route))) {
-    return next();
+
+  const filePath = path.resolve(record.file_path);
+  if (!fs.existsSync(filePath)) {
+    console.error('File not found on disk:', filePath);
+    return res.status(404).json({ error: 'File not found on disk' });
   }
-  
-  // Skip auth for POST routes with file uploads (they handle auth after multer processes FormData)
-  if (req.method === 'POST' && (req.path === '/bulletins' || req.path === '/messages' || req.path === '/files' || req.path.startsWith('/admin/users'))) {
-    return next();
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  const ext = path.extname(filePath).toLowerCase();
+  if (!INLINE_EXT.includes(ext)) {
+    const name = encodeURIComponent(record.original_filename || record.filename);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${name}`);
   }
-  
-  // Check for userId in query, body, or URL params
-  const userId = req.query.userId || 
-                 req.query.requestingUserId ||
-                 req.body?.userId || 
-                 req.body?.requestingUserId || 
-                 req.body?.senderId ||
-                 req.params?.userId;
-  
-  // For routes that have userId in the path like /messages/inbox/:userId
-  const pathMatch = req.path.match(/\/(\d+)/);
-  const pathUserId = pathMatch ? pathMatch[1] : null;
-  
-  if (!userId && !pathUserId) {
-    return res.status(401).json({ error: 'Authentication required' });
+  return res.sendFile(filePath);
+}
+
+// Expo push: max 100 messages per request
+async function sendExpoPush(messages) {
+  for (let i = 0; i < messages.length; i += 100) {
+    try {
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messages.slice(i, i + 100)),
+      });
+    } catch (err) {
+      console.error('Push error:', err.message);
+    }
   }
-  
-  next();
+}
+
+const CATEGORY_LABELS = {
+  'west-wing': 'Chiefs',
+  'training': 'Training',
+  'fire-prevention': 'Fire Prevention',
+  'repair-division': 'Repair Division',
+  'alarm-division': 'Alarm Division',
+  'commissioners': 'Commissioners'
 };
 
-// Apply auth middleware to all routes
+// ---------------------------------------------------------------------------
+// Authentication middleware
+// ---------------------------------------------------------------------------
+const publicRoutes = ['/login', '/register', '/logout', '/request-password-reset'];
+
+const requireAuth = async (req, res, next) => {
+  if (publicRoutes.includes(req.path)) {
+    return next();
+  }
+
+  const authHeader = req.get('Authorization') || '';
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = bearer || (req.cookies && req.cookies[COOKIE_NAME]);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const payload = jwt.verify(token, SESSION_SECRET, { algorithms: ['HS256'] });
+    // Reload the user every request so role changes, deletions and
+    // deactivations take effect immediately
+    const user = await getUserById(payload.id);
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    req.user = user;
+
+    // Sliding web session: the app polls every 10 seconds, so as long as it's
+    // open the cookie keeps getting extended. It only expires after 12 hours
+    // of inactivity (so a 24-hour shift doesn't log anyone out mid-message).
+    if (!bearer && payload.iat && Date.now() / 1000 - payload.iat > 3600) {
+      const fresh = jwt.sign({ id: user.id }, SESSION_SECRET, {
+        algorithm: 'HS256',
+        expiresIn: `${WEB_SESSION_HOURS}h`
+      });
+      res.cookie(COOKIE_NAME, fresh, { ...cookieOptions(), maxAge: WEB_SESSION_HOURS * 60 * 60 * 1000 });
+    }
+
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+};
+
 router.use(requireAuth);
 
-// Configure Cloudinary + multer for file uploads
+// ---------------------------------------------------------------------------
+// File uploads (Cloudinary, with local-disk fallback)
+// ---------------------------------------------------------------------------
 let upload;
+let cloudinaryClient = null;
 try {
   const cloudinary = require('cloudinary').v2;
   const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -115,6 +206,7 @@ try {
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
+  cloudinaryClient = cloudinary;
 
   const cloudinaryStorage = new CloudinaryStorage({
     cloudinary,
@@ -150,865 +242,821 @@ try {
   upload = multer({ storage: diskStorage, limits: { fileSize: 200 * 1024 * 1024 } });
 }
 
-// Public registration (no auth required)
-router.post('/register', async (req, res) => {
-  const { email, name, username, password } = req.body;
-  
+// Uploads happen before the route's permission checks run, so a rejected
+// request has to clean up the files it already stored.
+const discardUploads = (req) => {
+  const files = req.files || (req.file ? [req.file] : []);
+  files.forEach(f => {
+    if (cloudinaryClient && f.path && f.path.startsWith('http') && f.filename) {
+      const mime = f.mimetype || '';
+      const resourceType = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'raw';
+      cloudinaryClient.uploader.destroy(f.filename, { resource_type: resourceType }).catch(() => {});
+    } else if (f.path && !f.path.startsWith('http')) {
+      fs.unlink(f.path, () => {});
+    }
+  });
+};
+
+const saveAttachments = async (files, bulletinId, messageId) => {
+  for (const file of (files || [])) {
+    await addAttachment(
+      file.filename || file.original_filename,
+      file.originalname || file.original_filename,
+      file.secure_url || file.url || file.path,
+      file.bytes || file.size || 0,
+      file.mimetype || file.resource_type,
+      bulletinId,
+      messageId
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Auth routes
+// ---------------------------------------------------------------------------
+router.post('/register', h(async (req, res) => {
+  const { email, name, username, password } = req.body || {};
+
   if (!email || !name || !username || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
-  
+  if (password.length < MIN_PASSWORD) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+  }
+
   const result = await registerUser(email, name, username, password);
-  
+
   if (result.error) {
     res.status(400).json(result);
   } else {
     res.json({ success: true, message: 'Registration submitted. Please wait for admin approval.' });
   }
-});
+}));
 
-// Login
-router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  const result = await loginUser(username, password);
-  
-  if (!result) {
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
-  } else if (result.error) {
-    res.status(403).json({ success: false, error: result.error });
-  } else {
-    res.json({ success: true, user: result });
+router.post('/login', h(async (req, res) => {
+  const { username, password, client } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ success: false, error: 'Username and password required' });
   }
+
+  const result = await loginUser(username, password);
+
+  if (!result) {
+    return res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
+  if (result.error) {
+    return res.status(403).json({ success: false, error: result.error });
+  }
+
+  const isMobile = client === 'mobile' || req.get('X-Client') === 'mobile';
+
+  if (isMobile) {
+    // Mobile apps keep the token themselves (SecureStore) and send it as a Bearer header
+    const token = jwt.sign({ id: result.id }, SESSION_SECRET, {
+      algorithm: 'HS256',
+      expiresIn: `${MOBILE_SESSION_DAYS}d`
+    });
+    return res.json({ success: true, user: result, token });
+  }
+
+  const token = jwt.sign({ id: result.id }, SESSION_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: `${WEB_SESSION_HOURS}h`
+  });
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: WEB_SESSION_HOURS * 60 * 60 * 1000 });
+  res.json({ success: true, user: result });
+}));
+
+router.post('/logout', (req, res) => {
+  res.clearCookie(COOKIE_NAME, cookieOptions());
+  res.json({ success: true });
 });
 
-// Get current user
-router.get('/user/:id', async (req, res) => {
-  const user = await getUserById(parseInt(req.params.id));
+// Current session user (used by the clients on startup)
+router.get('/me', (req, res) => {
+  res.json(req.user);
+});
+
+// Get a user (self or admin only)
+router.get('/user/:id', h(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (id !== req.user.id && !isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const user = await getUserById(id);
   if (user) {
     res.json(user);
   } else {
     res.status(404).json({ error: 'User not found' });
   }
-});
+}));
 
-// --- Users ---
-router.get('/users', async (req, res) => {
-  const users = await getUsers();
-  res.json(users);
-});
-
-// Get users by role
-router.get('/users/by-role/:role', async (req, res) => {
-  const role = req.params.role;
-  const users = await getUsersByRole(role);
-  res.json(users);
-});
-
-// Get pending users (Admin or Chief)
-router.get('/admin/pending-users', async (req, res) => {
-  const requestingUserId = req.query.requestingUserId;
-  if (!requestingUserId) {
-    return res.status(400).json({ error: 'requestingUserId required' });
+// User changes their own password. After an admin reset (must_change_password)
+// the current password isn't required; otherwise it is.
+router.post('/change-password', h(async (req, res) => {
+  const { newPassword, currentPassword } = req.body || {};
+  if (!newPassword) {
+    return res.status(400).json({ error: 'newPassword required' });
   }
-  
-  const requestingUser = await getUserById(parseInt(requestingUserId));
-  if (!requestingUser) {
-    return res.status(404).json({ error: 'User not found' });
+
+  if (!req.user.must_change_password) {
+    if (!currentPassword || !(await verifyPassword(req.user.id, currentPassword))) {
+      return res.status(403).json({ error: 'Current password is incorrect' });
+    }
   }
-  
-  const userRoles = requestingUser.roles || [requestingUser.role];
-  const isChiefOrAdmin = userRoles.some(role => 
-    role === 'chief' || role === 'admin' || role === 'super_user'
-  );
-  
-  if (!isChiefOrAdmin) {
+
+  const result = await changePassword(req.user.id, newPassword);
+  if (result.error) {
+    return res.status(400).json(result);
+  }
+  res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+router.get('/users', h(async (req, res) => {
+  res.json(await getUsers());
+}));
+
+router.get('/users/by-role/:role', h(async (req, res) => {
+  res.json(await getUsersByRole(req.params.role));
+}));
+
+// Save Expo push token (own token only)
+router.post('/users/:id/push-token', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (userId !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+
+  await pool.query('UPDATE users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
+  res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Admin: approvals
+// ---------------------------------------------------------------------------
+router.get('/admin/pending-users', h(async (req, res) => {
+  if (!isChiefOrAdmin(req.user)) {
     return res.status(403).json({ error: 'Unauthorized - Chief or Admin access required' });
   }
-  
-  const pending = await getPendingUsers();
-  res.json(pending);
-});
+  res.json(await getPendingUsers());
+}));
 
-// Approve user (Admin only)
-router.post('/admin/approve-user/:id', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { assignedRole, requestingUserId } = req.body;
-  
-  const result = await approveUser(userId, assignedRole, requestingUserId);
-  
+router.post('/admin/approve-user/:id', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { assignedRole } = req.body || {};
+
+  // main.js also enforces who may hand out admin-level roles
+  const result = await approveUser(userId, assignedRole, req.user.id);
+
   if (result.error) {
     res.status(403).json(result);
   } else {
     res.json({ success: result.changes > 0 });
   }
-});
+}));
 
-// Reject user (Admin only)
-router.post('/admin/reject-user/:id', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { requestingUserId } = req.body;
-  
-  const result = await rejectUser(userId, requestingUserId);
-  
+router.post('/admin/reject-user/:id', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const result = await rejectUser(userId, req.user.id);
+
   if (result.error) {
     res.status(403).json(result);
   } else {
     res.json({ success: result.changes > 0 });
   }
-});
+}));
 
-// --- Bulletins ---
-router.get('/bulletins', async (req, res) => {
-  const bulletins = await getBulletins();
-  res.json(bulletins);
-});
+// ---------------------------------------------------------------------------
+// Bulletins
+// ---------------------------------------------------------------------------
 
-// Get all bulletins for unread indicators
-router.get('/bulletins/all', async (req, res) => {
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
+// Bulletins the user may see (filtered by category permission)
+router.get('/bulletins', h(async (req, res) => {
+  const result = await pool.query(`
+    SELECT b.*, u.name as author_name
+    FROM bulletins b
+    JOIN users u ON b.user_id = u.id
+    ORDER BY b.created_at DESC
+  `);
+
+  const allowed = {};
+  const visible = [];
+  for (const bulletin of result.rows) {
+    if (!(bulletin.category in allowed)) {
+      allowed[bulletin.category] = await canViewBulletin(req.user.id, bulletin.category);
+    }
+    if (allowed[bulletin.category]) visible.push(bulletin);
   }
-  
-  const user = await getUserById(parseInt(userId));
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+
+  res.json(visible);
+}));
+
+// All bulletins the user may see (id/category/date only) for unread indicators
+router.get('/bulletins/all', h(async (req, res) => {
+  const result = await pool.query('SELECT id, category, created_at FROM bulletins ORDER BY created_at DESC');
+
+  const allowed = {};
+  const visible = [];
+  for (const bulletin of result.rows) {
+    if (!(bulletin.category in allowed)) {
+      allowed[bulletin.category] = await canViewBulletin(req.user.id, bulletin.category);
+    }
+    if (allowed[bulletin.category]) visible.push(bulletin);
   }
-  
+
+  res.json(visible);
+}));
+
+router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
+  const { title, body } = req.body;
+  const category = req.body.category || 'west-wing';
+
+  if (!title || !title.trim() || !body || !body.trim()) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'Title and content are required' });
+  }
+
+  // addBulletin checks canPostBulletin for this user and category
+  const result = await addBulletin(title, body, category, req.user.id);
+
+  if (result.error) {
+    discardUploads(req);
+    return res.status(403).json(result);
+  }
+
+  const bulletinId = result.lastInsertRowid;
+  await saveAttachments(req.files, bulletinId, null);
+
+  // Push notifications. Restricted categories only notify people who can view them,
+  // otherwise the title and preview would leak to everyone with the app installed.
   try {
-    const result = await pool.query(`
-      SELECT id, category, created_at
-      FROM bulletins
-      ORDER BY created_at DESC
-    `);
-    
-    // Filter bulletins based on user permissions
-    const filteredBulletins = [];
-    for (const bulletin of result.rows) {
-      const canView = await canViewBulletin(parseInt(userId), bulletin.category);
-      if (canView) {
-        filteredBulletins.push(bulletin);
+    const tokenResult = await pool.query(
+      "SELECT id, expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND status = 'active'"
+    );
+
+    let recipients = tokenResult.rows;
+    if (category === 'alarm-division' || category === 'commissioners') {
+      const filtered = [];
+      for (const r of recipients) {
+        if (await canViewBulletin(r.id, category)) filtered.push(r);
       }
+      recipients = filtered;
     }
-    
-    res.json(filteredBulletins);
+
+    const label = CATEGORY_LABELS[category] || (category.charAt(0).toUpperCase() + category.slice(1));
+    const messages = recipients
+      .map(r => r.expo_push_token)
+      .filter(t => t && t.startsWith('ExponentPushToken'))
+      .map(token => ({
+        to: token,
+        sound: 'default',
+        title: `New Bulletin - ${label}`,
+        body: `${title}: ${body.substring(0, 80)}`,
+      }));
+
+    await sendExpoPush(messages);
   } catch (err) {
-    console.error('Error fetching all bulletins:', err);
-    res.status(500).json({ error: 'Failed to fetch bulletins' });
+    console.error('Push error:', err.message);
   }
-});
 
-// Post bulletin (web)
-router.post('/bulletins', upload.array('files', 5), async (req, res) => {
-  const { title, body, category, userId } = req.body;
-  const result = await addBulletin(title, body, category || 'west-wing', userId);
-  
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    const bulletinId = result.lastInsertRowid;
-    
-    // FIX: use Cloudinary URL (secure_url) with fallback to local path
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        await addAttachment(
-          file.filename || file.original_filename,
-          file.originalname || file.original_filename,
-          file.secure_url || file.url || file.path,
-          file.bytes || file.size || 0,
-          file.mimetype || file.resource_type,
-          bulletinId,
-          null
-        );
-      }
-    }
-    
-    // Send push notifications
-    try {
-      const tokenResult = await pool.query(
-        "SELECT expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND status = 'active'"
-      );
-      const messages = tokenResult.rows
-        .map(r => r.expo_push_token)
-        .filter(t => t && t.startsWith('ExponentPushToken'))
-        .map(token => ({
-          to: token,
-          sound: 'default',
-          title: `New Bulletin - ${category === 'west-wing' ? 'Chiefs' : category === 'fire-prevention' ? 'Fire Prevention' : category === 'repair-division' ? 'Repair Division' : category === 'alarm-division' ? 'Alarm Division' : category === 'commissioners' ? 'Commissioners' : category.charAt(0).toUpperCase() + category.slice(1)}`,
-          body: `${title}: ${body.substring(0, 80)}`,
-        }));
-      if (messages.length > 0) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messages),
-        });
-      }
-    } catch (err) {
-      console.error('Push error:', err.message);
-    }
+  res.json({ success: true, id: bulletinId });
+}));
 
-    res.json({ success: true, id: bulletinId });
-  }
-});
-
-// Check bulletin permissions endpoint
-router.get('/bulletins/permissions/:category', async (req, res) => {
+router.get('/bulletins/permissions/:category', h(async (req, res) => {
   const category = req.params.category;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-  
-  const user = await getUserById(parseInt(userId));
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  
   res.json({
-    canView: await canViewBulletin(parseInt(userId), category),
-    canPost: await canPostBulletin(parseInt(userId), category),
-    canDelete: await canDeleteBulletin(parseInt(userId), category)
+    canView: await canViewBulletin(req.user.id, category),
+    canPost: await canPostBulletin(req.user.id, category),
+    canDelete: await canDeleteBulletin(req.user.id, category)
   });
-});
+}));
 
-// Get bulletins by category with role-based filtering
-router.get('/bulletins/category/:category', async (req, res) => {
+router.get('/bulletins/category/:category', h(async (req, res) => {
   const category = req.params.category;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-  
-  const user = await getUserById(parseInt(userId));
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  
-  const bulletins = await getBulletinsByCategory(category, parseInt(userId));
-  res.json(bulletins);
-});
 
-router.delete('/bulletins/:id', async (req, res) => {
-  const bulletinId = parseInt(req.params.id);
-  const { userId } = req.body;
-  const result = await deleteBulletin(bulletinId, userId);
+  if (!(await canViewBulletin(req.user.id, category))) {
+    return res.status(403).json({ error: 'Not authorized to view this category' });
+  }
+
+  res.json(await getBulletinsByCategory(category));
+}));
+
+router.get('/bulletins/can-view/:category', h(async (req, res) => {
+  res.json({ canView: await canViewBulletin(req.user.id, req.params.category) });
+}));
+
+router.post('/bulletins/mark-read', h(async (req, res) => {
+  const bulletinId = parseInt((req.body || {}).bulletinId, 10);
+  if (!Number.isInteger(bulletinId)) {
+    return res.status(400).json({ error: 'bulletinId required' });
+  }
+
+  await pool.query(
+    `INSERT INTO bulletin_reads (user_id, bulletin_id, read_at)
+     VALUES ($1, $2, CURRENT_TIMESTAMP)
+     ON CONFLICT DO NOTHING`,
+    [req.user.id, bulletinId]
+  );
+
+  res.json({ success: true });
+}));
+
+router.delete('/bulletins/:id', h(async (req, res) => {
+  // deleteBulletin allows the author, or anyone with canDeleteBulletin for the category
+  const result = await deleteBulletin(parseInt(req.params.id, 10), req.user.id);
   if (result.error) {
     res.status(403).json(result);
   } else {
     res.json({ success: result.changes > 0 });
   }
-});
+}));
 
-// Get bulletin attachments
-router.get('/bulletins/:id/attachments', async (req, res) => {
-  const bulletinId = parseInt(req.params.id);
-  const attachments = await getAttachmentsByBulletin(bulletinId);
-  res.json(attachments);
-});
+router.get('/bulletins/:id/attachments', h(async (req, res) => {
+  const bulletinId = parseInt(req.params.id, 10);
+  if (!(await userCanViewBulletinId(req.user, bulletinId))) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  res.json(await getAttachmentsByBulletin(bulletinId));
+}));
 
-// Download/serve bulletin attachment
-// FIX: redirect to Cloudinary URL if stored, otherwise fall back to local disk
-router.get('/bulletins/:bulletinId/attachments/:attachmentId', async (req, res) => {
-  const attachmentId = parseInt(req.params.attachmentId);
-  
+// Download/serve bulletin attachment (Cloudinary redirect, or local disk for legacy files)
+router.get('/bulletins/:bulletinId/attachments/:attachmentId', h(async (req, res) => {
+  const bulletinId = parseInt(req.params.bulletinId, 10);
+  const attachmentId = parseInt(req.params.attachmentId, 10);
+
+  if (!(await userCanViewBulletinId(req.user, bulletinId))) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const result = await pool.query(
+    'SELECT * FROM attachments WHERE id = $1 AND bulletin_id = $2',
+    [attachmentId, bulletinId]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Attachment not found' });
+  }
+
+  sendStoredFile(res, result.rows[0]);
+}));
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+router.get('/messages/inbox/:userId', h(async (req, res) => {
+  if (parseInt(req.params.userId, 10) !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  res.json(await getInbox(req.user.id));
+}));
+
+router.get('/messages/sent/:userId', h(async (req, res) => {
+  if (parseInt(req.params.userId, 10) !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  res.json(await getSent(req.user.id));
+}));
+
+router.post('/messages', upload.array('files', 5), h(async (req, res) => {
+  const { to, subject, body, threadId, parentMessageId } = req.body;
+
+  let recipients;
   try {
-    const result = await pool.query(
-      'SELECT * FROM attachments WHERE id = $1 AND bulletin_id IS NOT NULL',
-      [attachmentId]
+    recipients = JSON.parse(to).map(Number);
+  } catch (err) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'Invalid recipients' });
+  }
+
+  if (recipients.length === 0 || !recipients.every(Number.isInteger)) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'At least one recipient is required' });
+  }
+  if (!subject || !subject.trim() || !body || !body.trim()) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'Subject and message are required' });
+  }
+
+  // Every recipient must be a real, active user
+  const valid = await pool.query(
+    "SELECT id FROM users WHERE id = ANY($1::int[]) AND status = 'active'",
+    [recipients]
+  );
+  if (valid.rows.length !== new Set(recipients).size) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'One or more recipients are invalid' });
+  }
+
+  // Replying into an existing thread requires being a participant
+  let threadIdInt = null;
+  if (threadId) {
+    threadIdInt = parseInt(threadId, 10);
+    if (!(await userInThread(req.user.id, threadIdInt))) {
+      discardUploads(req);
+      return res.status(403).json({ error: 'Not authorized to post in this thread' });
+    }
+  }
+  const parentIdInt = parentMessageId ? parseInt(parentMessageId, 10) : null;
+
+  const result = await sendMessage(req.user.id, recipients, subject, body, threadIdInt, parentIdInt);
+  const messageId = result.lastInsertRowid;
+
+  // Mark as read for the sender
+  await pool.query(
+    'INSERT INTO message_reads (user_id, message_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
+    [req.user.id, messageId]
+  );
+
+  await saveAttachments(req.files, null, messageId);
+
+  // Push notifications to recipients
+  try {
+    const tokenResult = await pool.query(
+      'SELECT expo_push_token FROM users WHERE id = ANY($1::int[]) AND expo_push_token IS NOT NULL',
+      [recipients]
     );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Attachment not found' });
-    }
-    
-    const attachment = result.rows[0];
-
-    // If stored as a Cloudinary (or any http) URL, redirect directly
-    if (attachment.file_path && attachment.file_path.startsWith('http')) {
-      return res.redirect(attachment.file_path);
-    }
-
-    // Fallback: serve from local disk (legacy attachments)
-    const filePath = path.resolve(attachment.file_path);
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found on disk:', filePath);
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
-    res.sendFile(filePath);
+    const messages = tokenResult.rows
+      .map(r => r.expo_push_token)
+      .filter(t => t && t.startsWith('ExponentPushToken'))
+      .map(token => ({
+        to: token,
+        sound: 'default',
+        title: `New Message from ${req.user.name || 'Someone'}`,
+        body: subject,
+      }));
+    await sendExpoPush(messages);
   } catch (err) {
-    console.error('Error retrieving attachment:', err);
-    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
+    console.error('Push error:', err.message);
   }
-});
 
-// Check if user can view a category
-router.get('/bulletins/can-view/:category', async (req, res) => {
-  const category = req.params.category;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
+  res.json({ success: true, threadId: result.threadId, messageId: messageId });
+}));
+
+router.get('/messages/thread/:threadId', h(async (req, res) => {
+  const threadId = parseInt(req.params.threadId, 10);
+  if (!(await userInThread(req.user.id, threadId))) {
+    return res.status(403).json({ error: 'Not authorized to view this thread' });
   }
-  
-  const canView = await canViewBulletin(parseInt(userId), category);
-  res.json({ canView });
-});
+  res.json(await getThreadMessages(threadId));
+}));
 
-// Mark bulletin as read
-router.post('/bulletins/mark-read', async (req, res) => {
-  const { userId, bulletinId } = req.body;
-  
-  try {
-    await pool.query(`
-      INSERT INTO bulletin_reads (user_id, bulletin_id, read_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
-      ON CONFLICT DO NOTHING
-    `, [userId, bulletinId]);
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking bulletin as read:', err);
-    res.status(500).json({ error: 'Failed to mark bulletin as read' });
+router.get('/messages/thread/:threadId/participants', h(async (req, res) => {
+  const threadId = parseInt(req.params.threadId, 10);
+  if (!(await userInThread(req.user.id, threadId))) {
+    return res.status(403).json({ error: 'Not authorized' });
   }
-});
 
-// --- Messages ---
-router.get('/messages/inbox/:userId', async (req, res) => {
-  const userId = parseInt(req.params.userId);
-  const messages = await getInbox(userId);
-  res.json(messages);
-});
+  const result = await pool.query(
+    `SELECT user_id, users.name
+     FROM thread_participants
+     JOIN users ON thread_participants.user_id = users.id
+     WHERE thread_id = $1`,
+    [threadId]
+  );
 
-router.get('/messages/sent/:userId', async (req, res) => {
-  const userId = parseInt(req.params.userId);
-  const messages = await getSent(userId);
-  res.json(messages);
-});
+  res.json({ participants: result.rows });
+}));
 
-// Handle multiple recipients and threading
-router.post('/messages', upload.array('files', 5), async (req, res) => {
-  const { senderId, to, subject, body, threadId, parentMessageId } = req.body;
-  
-  try {
-    const recipients = JSON.parse(to);
-    
-    if (!Array.isArray(recipients) || recipients.length === 0) {
-      return res.status(400).json({ error: 'At least one recipient is required' });
+router.get('/messages/thread/:threadId/read-receipts', h(async (req, res) => {
+  const threadId = parseInt(req.params.threadId, 10);
+  if (!(await userInThread(req.user.id, threadId))) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const result = await pool.query(
+    `SELECT mr.message_id, mr.user_id, u.name, mr.read_at
+     FROM message_reads mr
+     JOIN messages m ON mr.message_id = m.id
+     JOIN users u ON mr.user_id = u.id
+     WHERE m.thread_id = $1
+     ORDER BY mr.read_at DESC`,
+    [threadId]
+  );
+
+  const grouped = {};
+  result.rows.forEach(receipt => {
+    if (!grouped[receipt.message_id]) {
+      grouped[receipt.message_id] = [];
     }
-    
-    const result = await sendMessage(senderId, recipients, subject, body, threadId ? parseInt(threadId) : null, parentMessageId);
-    const messageId = result.lastInsertRowid;
-    
-    // Automatically mark the message as read for the sender
-    await pool.query(
-      'INSERT INTO message_reads (user_id, message_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
-      [senderId, messageId]
-    );
-    
-    // FIX: use Cloudinary URL (secure_url) with fallback to local path
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        await addAttachment(
-          file.filename || file.original_filename,
-          file.originalname || file.original_filename,
-          file.secure_url || file.url || file.path,
-          file.bytes || file.size || 0,
-          file.mimetype || file.resource_type,
-          null,
-          messageId
-        );
-      }
-    }
-    
-
-    // Send push notifications to recipients
-    try {
-      const tokenResult = await pool.query(
-        'SELECT expo_push_token FROM users WHERE id = ANY($1) AND expo_push_token IS NOT NULL',
-        [recipients]
-      );
-      const senderResult = await pool.query('SELECT name FROM users WHERE id = $1', [parseInt(senderId)]);
-      const senderName = senderResult.rows[0]?.name || 'Someone';
-      const messages = tokenResult.rows
-        .map(r => r.expo_push_token)
-        .filter(t => t && t.startsWith('ExponentPushToken'))
-        .map(token => ({
-          to: token,
-          sound: 'default',
-          title: `New Message from ${senderName}`,
-          body: subject,
-        }));
-      if (messages.length > 0) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messages),
-        });
-      }
-    } catch (err) {
-      console.error('Push error:', err.message);
-    }
-
-    res.json({ success: true, threadId: result.threadId, messageId: messageId });
-  } catch (err) {
-    console.error('Error sending message:', err);
-    res.status(500).json({ error: 'Failed to send message' });
-  }
-});
-
-// Get messages in a thread
-router.get('/messages/thread/:threadId', async (req, res) => {
-  const threadId = req.params.threadId;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-  
-  try {
-    // Check if user is a participant in this thread
-    const participantResult = await pool.query(
-      'SELECT 1 FROM thread_participants WHERE thread_id = $1 AND user_id = $2',
-      [threadId, parseInt(userId)]
-    );
-    
-    if (participantResult.rows.length === 0) {
-      return res.status(403).json({ error: 'Not authorized to view this thread' });
-    }
-    
-    const messages = await getThreadMessages(threadId);
-    res.json(messages);
-  } catch (err) {
-    console.error('Error fetching thread:', err);
-    res.status(500).json({ error: 'Failed to fetch thread' });
-  }
-});
-
-// Get thread participants
-router.get('/messages/thread/:threadId/participants', async (req, res) => {
-  const threadId = parseInt(req.params.threadId);
-  
-  try {
-    const result = await pool.query(`
-      SELECT user_id, users.name
-      FROM thread_participants
-      JOIN users ON thread_participants.user_id = users.id
-      WHERE thread_id = $1
-    `, [threadId]);
-    
-    res.json({ participants: result.rows });
-  } catch (err) {
-    console.error('Error fetching thread participants:', err);
-    res.status(500).json({ error: 'Failed to fetch participants' });
-  }
-});
-
-router.delete('/messages/:id', async (req, res) => {
-  const messageId = parseInt(req.params.id);
-  const { userId } = req.body;
-  const result = await deleteMessage(messageId, userId);
-  res.json({ success: result.changes > 0 });
-});
-
-// Get message attachments
-router.get('/messages/:id/attachments', async (req, res) => {
-  const messageId = parseInt(req.params.id);
-  const attachments = await getAttachmentsByMessage(messageId);
-  res.json(attachments);
-});
-
-// Download/serve message attachment
-// FIX: redirect to Cloudinary URL if stored, otherwise fall back to local disk
-router.get('/messages/:messageId/attachments/:attachmentId', async (req, res) => {
-  const attachmentId = parseInt(req.params.attachmentId);
-  
-  try {
-    const result = await pool.query(
-      'SELECT * FROM attachments WHERE id = $1 AND message_id IS NOT NULL',
-      [attachmentId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Attachment not found' });
-    }
-    
-    const attachment = result.rows[0];
-
-    // If stored as a Cloudinary (or any http) URL, redirect directly
-    if (attachment.file_path && attachment.file_path.startsWith('http')) {
-      return res.redirect(attachment.file_path);
-    }
-
-    // Fallback: serve from local disk (legacy attachments)
-    const filePath = path.resolve(attachment.file_path);
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found on disk:', filePath);
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
-    res.sendFile(filePath);
-  } catch (err) {
-    console.error('Error retrieving attachment:', err);
-    res.status(500).json({ error: 'Failed to retrieve attachment', details: err.message });
-  }
-});
-
-// Delete attachment
-router.delete('/attachments/:id', async (req, res) => {
-  const attachmentId = parseInt(req.params.id);
-  const result = await deleteAttachment(attachmentId);
-  res.json({ success: result.changes > 0 });
-});
-
-// Mark message as read
-router.post('/messages/mark-read', async (req, res) => {
-  const { userId, messageId } = req.body;
-  
-  try {
-    await pool.query(`
-      INSERT INTO message_reads (user_id, message_id, read_at)
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
-      ON CONFLICT DO NOTHING
-    `, [userId, messageId]);
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking message as read:', err);
-    res.status(500).json({ error: 'Failed to mark message as read' });
-  }
-});
-
-// Get read receipts for messages in a thread
-router.get('/messages/thread/:threadId/read-receipts', async (req, res) => {
-  const threadId = req.params.threadId;
-  const userId = req.query.userId;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
-  }
-  
-  try {
-    const result = await pool.query(`
-      SELECT mr.message_id, mr.user_id, u.name, mr.read_at
-      FROM message_reads mr
-      JOIN messages m ON mr.message_id = m.id
-      JOIN users u ON mr.user_id = u.id
-      WHERE m.thread_id = $1
-      ORDER BY mr.read_at DESC
-    `, [threadId]);
-    
-    const receipts = result.rows;
-    
-    // Group by message_id
-    const grouped = {};
-    receipts.forEach(receipt => {
-      if (!grouped[receipt.message_id]) {
-        grouped[receipt.message_id] = [];
-      }
-      grouped[receipt.message_id].push({
-        userId: receipt.user_id,
-        name: receipt.name,
-        readAt: receipt.read_at
-      });
+    grouped[receipt.message_id].push({
+      userId: receipt.user_id,
+      name: receipt.name,
+      readAt: receipt.read_at
     });
-    
-    res.json(grouped);
-  } catch (err) {
-    console.error('Error fetching read receipts:', err);
-    res.status(500).json({ error: 'Failed to fetch read receipts' });
-  }
-});
+  });
 
-// Get read receipts for a message
-router.get('/messages/:messageId/read-receipts', async (req, res) => {
-  const { messageId } = req.params;
-  
-  try {
-    const result = await pool.query(`
-      SELECT mr.user_id, mr.read_at, u.name
-      FROM message_reads mr
-      JOIN users u ON mr.user_id = u.id
-      WHERE mr.message_id = $1
-      ORDER BY mr.read_at DESC
-    `, [messageId]);
-    
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching read receipts:', err);
-    res.status(500).json({ error: 'Failed to fetch read receipts' });
-  }
-});
+  res.json(grouped);
+}));
 
-// --- READ STATUS ENDPOINTS ---
-
-// Get read status for a user
-router.get('/read-status/:userId', async (req, res) => {
-  const { userId } = req.params;
-  
-  try {
-    const bulletinsResult = await pool.query(
-      'SELECT bulletin_id FROM bulletin_reads WHERE user_id = $1',
-      [userId]
-    );
-    
-    const messagesResult = await pool.query(
-      'SELECT message_id FROM message_reads WHERE user_id = $1',
-      [userId]
-    );
-    
-    res.json({
-      bulletins: bulletinsResult.rows.map(b => b.bulletin_id),
-      messages: messagesResult.rows.map(m => m.message_id)
-    });
-  } catch (err) {
-    console.error('Error fetching read status:', err);
-    res.status(500).json({ error: 'Failed to fetch read status' });
+router.post('/messages/mark-read', h(async (req, res) => {
+  const messageId = parseInt((req.body || {}).messageId, 10);
+  if (!Number.isInteger(messageId)) {
+    return res.status(400).json({ error: 'messageId required' });
   }
-});
-
-// --- Admin User Management ---
-router.post('/admin/users', async (req, res) => {
-  const { email, name, username, password, roles, requestingUserId } = req.body;
-  const result = await createUser(email, name, username, password, roles, requestingUserId);
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: true, id: result.id || result.lastInsertRowid });
+  if (!(await userInThreadOfMessage(req.user.id, messageId))) {
+    return res.status(403).json({ error: 'Not authorized' });
   }
-});
 
-router.put('/admin/users/:id', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { email, name, username, roles, requestingUserId } = req.body;
-  const result = await updateUser(userId, email, name, username, roles, requestingUserId);
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: true, id: result.id || result.lastInsertRowid });
-  }
-});
+  await pool.query(
+    `INSERT INTO message_reads (user_id, message_id, read_at)
+     VALUES ($1, $2, CURRENT_TIMESTAMP)
+     ON CONFLICT DO NOTHING`,
+    [req.user.id, messageId]
+  );
 
-router.delete('/admin/users/:id', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { requestingUserId } = req.body;
-  const result = await deleteUser(userId, requestingUserId);
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
-  }
-});
+  res.json({ success: true });
+}));
 
-router.post('/admin/users/:id/reset-password', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { newPassword, requestingUserId } = req.body;
-  const result = await resetPassword(userId, newPassword, requestingUserId);
-  if (result.error) {
-    res.status(403).json(result);
-  } else {
-    res.json({ success: result.changes > 0 });
+router.get('/messages/:messageId/read-receipts', h(async (req, res) => {
+  const messageId = parseInt(req.params.messageId, 10);
+  if (!(await userInThreadOfMessage(req.user.id, messageId))) {
+    return res.status(403).json({ error: 'Not authorized' });
   }
-});
 
-// Save Expo push token
-router.post('/users/:id/push-token', async (req, res) => {
-  const userId = parseInt(req.params.id);
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'token required' });
-  try {
-    await pool.query('UPDATE users SET expo_push_token = $1 WHERE id = $2', [token, userId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to save token' });
-  }
-});
+  const result = await pool.query(
+    `SELECT mr.user_id, mr.read_at, u.name
+     FROM message_reads mr
+     JOIN users u ON mr.user_id = u.id
+     WHERE mr.message_id = $1
+     ORDER BY mr.read_at DESC`,
+    [messageId]
+  );
 
-// ADMIN: Export database info
-router.get('/admin/export-sql', async (req, res) => {
-  const { userId } = req.query;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId required' });
+  res.json(result.rows);
+}));
+
+router.delete('/messages/:id', h(async (req, res) => {
+  const result = await deleteMessage(parseInt(req.params.id, 10), req.user.id);
+  res.json({ success: result.changes > 0 });
+}));
+
+router.get('/messages/:id/attachments', h(async (req, res) => {
+  const messageId = parseInt(req.params.id, 10);
+  if (!(await userInThreadOfMessage(req.user.id, messageId))) {
+    return res.status(403).json({ error: 'Not authorized' });
   }
-  
-  const user = await getUserById(parseInt(userId));
-  if (!user || user.role !== 'admin') {
+  res.json(await getAttachmentsByMessage(messageId));
+}));
+
+// Download/serve message attachment (Cloudinary redirect, or local disk for legacy files)
+router.get('/messages/:messageId/attachments/:attachmentId', h(async (req, res) => {
+  const messageId = parseInt(req.params.messageId, 10);
+  const attachmentId = parseInt(req.params.attachmentId, 10);
+
+  if (!(await userInThreadOfMessage(req.user.id, messageId))) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const result = await pool.query(
+    'SELECT * FROM attachments WHERE id = $1 AND message_id = $2',
+    [attachmentId, messageId]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Attachment not found' });
+  }
+
+  sendStoredFile(res, result.rows[0]);
+}));
+
+// Delete attachment (admin only; the web app does not currently use this)
+router.delete('/attachments/:id', h(async (req, res) => {
+  if (!isAdminUser(req.user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
-  
-  try {
-    res.json({ message: 'PostgreSQL backup should be done through Render dashboard or Supabase dashboard' });
-  } catch (err) {
-    console.error('Error creating backup:', err);
-    res.status(500).json({ error: 'Backup failed', details: err.message });
+  const result = await deleteAttachment(parseInt(req.params.id, 10));
+  res.json({ success: result.changes > 0 });
+}));
+
+// ---------------------------------------------------------------------------
+// Read status
+// ---------------------------------------------------------------------------
+router.get('/read-status/:userId', h(async (req, res) => {
+  if (parseInt(req.params.userId, 10) !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
-});
 
-// Password reset request table (run once if not exists)
-pool.query(`
-  CREATE TABLE IF NOT EXISTS password_reset_requests (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    username VARCHAR(255),
-    name VARCHAR(255),
-    status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )
-`).catch(err => console.error('Error creating password_reset_requests table:', err));
+  const bulletinsResult = await pool.query(
+    'SELECT bulletin_id FROM bulletin_reads WHERE user_id = $1',
+    [req.user.id]
+  );
+  const messagesResult = await pool.query(
+    'SELECT message_id FROM message_reads WHERE user_id = $1',
+    [req.user.id]
+  );
 
-// User requests a password reset (public - no auth needed)
-router.post('/request-password-reset', async (req, res) => {
-  const { username } = req.body;
+  res.json({
+    bulletins: bulletinsResult.rows.map(b => b.bulletin_id),
+    messages: messagesResult.rows.map(m => m.message_id)
+  });
+}));
+
+// ---------------------------------------------------------------------------
+// Admin user management (main.js also re-checks admin status)
+// ---------------------------------------------------------------------------
+router.post('/admin/users', h(async (req, res) => {
+  const { email, name, username, password, roles } = req.body || {};
+
+  if (!password || password.length < MIN_PASSWORD) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+  }
+
+  const result = await createUser(email, name, username, password, roles, req.user.id);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: true, id: result.id || result.lastInsertRowid });
+  }
+}));
+
+router.put('/admin/users/:id', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { email, name, username, roles } = req.body || {};
+  const result = await updateUser(userId, email, name, username, roles, req.user.id);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: true, id: result.id || result.lastInsertRowid });
+  }
+}));
+
+router.delete('/admin/users/:id', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const result = await deleteUser(userId, req.user.id);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
+}));
+
+router.post('/admin/users/:id/reset-password', h(async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { newPassword } = req.body || {};
+
+  if (!newPassword || newPassword.length < MIN_PASSWORD) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+  }
+
+  // forces the user to choose a new password at next login (must_change_password)
+  const result = await resetPassword(userId, newPassword, req.user.id);
+  if (result.error) {
+    res.status(403).json(result);
+  } else {
+    res.json({ success: result.changes > 0 });
+  }
+}));
+
+router.get('/admin/export-sql', h(async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  res.json({ message: 'PostgreSQL backup should be done through Render dashboard or Supabase dashboard' });
+}));
+
+// ---------------------------------------------------------------------------
+// Password reset requests
+// ---------------------------------------------------------------------------
+
+// (The password_reset_requests table is created and migrated in scripts/init-db.js)
+
+// Public: a user asks for a password reset
+router.post('/request-password-reset', h(async (req, res) => {
+  const { username } = req.body || {};
   if (!username) return res.status(400).json({ error: 'Username required' });
 
-  try {
-    const userResult = await pool.query(
-      'SELECT id, name, username FROM users WHERE LOWER(username) = LOWER($1)',
-      [username]
-    );
-    if (userResult.rows.length === 0) {
-      // Return success anyway to not reveal if username exists
-      return res.json({ success: true });
-    }
-    const u = userResult.rows[0];
+  const userResult = await pool.query(
+    'SELECT id, name, username FROM users WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+
+  // Same response whether or not the username exists
+  if (userResult.rows.length === 0) {
+    return res.json({ success: true });
+  }
+
+  const u = userResult.rows[0];
+
+  // Don't pile up duplicate pending requests
+  const existing = await pool.query(
+    "SELECT 1 FROM password_reset_requests WHERE user_id = $1 AND status = 'pending'",
+    [u.id]
+  );
+  if (existing.rows.length === 0) {
     await pool.query(
       'INSERT INTO password_reset_requests (user_id, username, name) VALUES ($1, $2, $3)',
       [u.id, u.username, u.name]
     );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error creating password reset request:', err);
-    res.status(500).json({ error: 'Failed to submit request' });
-  }
-});
-
-// Admin: get all pending password reset requests
-router.get('/admin/password-reset-requests', async (req, res) => {
-  const { requestingUserId } = req.query;
-  if (!requestingUserId) return res.status(400).json({ error: 'requestingUserId required' });
-
-  try {
-    const result = await pool.query(
-      `SELECT * FROM password_reset_requests WHERE status = 'pending' ORDER BY created_at DESC`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching reset requests:', err);
-    res.status(500).json({ error: 'Failed to fetch requests' });
-  }
-});
-
-// Admin: dismiss a password reset request
-router.post('/admin/password-reset-requests/:id/dismiss', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query(
-      `UPDATE password_reset_requests SET status = 'dismissed' WHERE id = $1`,
-      [id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to dismiss request' });
-  }
-});
-
-// Admin: resolve a password reset request (marks it done, admin then uses reset-password endpoint)
-router.post('/admin/password-reset-requests/:id/resolve', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query(
-      `UPDATE password_reset_requests SET status = 'resolved' WHERE id = $1`,
-      [id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to resolve request' });
-  }
-});
-
-// User changes their own password (after admin reset)
-router.post('/change-password', async (req, res) => {
-  const { userId, newPassword } = req.body;
-  if (!userId || !newPassword) return res.status(400).json({ error: 'userId and newPassword required' });
-
-  try {
-    const crypto = require('crypto');
-    const hashed = crypto.createHash('sha256').update(newPassword).digest('hex');
-    await pool.query(
-      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
-      [hashed, userId]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error changing password:', err);
-    res.status(500).json({ error: 'Failed to change password' });
-  }
-});
-
-// --- Files ---
-router.get('/files', async (req, res) => {
-  const { userId, category } = req.query;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
-
-  try {
-    const query = category && category !== 'all'
-      ? 'SELECT f.*, u.name as uploader_name FROM file_library f JOIN users u ON f.uploaded_by = u.id WHERE f.category = $1 ORDER BY f.created_at DESC'
-      : 'SELECT f.*, u.name as uploader_name FROM file_library f JOIN users u ON f.uploaded_by = u.id ORDER BY f.created_at DESC';
-    const params = category && category !== 'all' ? [category] : [];
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching files:', err);
-    res.status(500).json({ error: 'Failed to fetch files' });
-  }
-});
-
-router.post('/files', upload.single('file'), async (req, res) => {
-  const { userId, title, description, category } = req.body;
-  if (!userId || !title || !req.file) {
-    return res.status(400).json({ error: 'userId, title, and file are required' });
   }
 
-  try {
-    const filePath = req.file.secure_url || req.file.url || req.file.path;
-    const result = await pool.query(
-      'INSERT INTO file_library (uploaded_by, title, description, category, filename, original_filename, file_path, file_size, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-      [userId, title, description || '', category || 'general', req.file.filename || req.file.public_id, req.file.originalname, filePath, req.file.size || req.file.bytes || 0, req.file.mimetype]
-    );
-    res.json({ success: true, id: result.rows[0].id });
-  } catch (err) {
-    console.error('Error uploading file:', err);
-    res.status(500).json({ error: 'Failed to upload file' });
-  }
-});
+  res.json({ success: true });
+}));
 
-router.delete('/files/:id', async (req, res) => {
-  const fileId = parseInt(req.params.id);
-  const { userId } = req.body;
-  try {
-    const result = await pool.query('DELETE FROM file_library WHERE id = $1 AND uploaded_by = $2', [fileId, userId]);
-    res.json({ success: result.rowCount > 0 });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete file' });
+router.get('/admin/password-reset-requests', h(async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
   }
-});
+  const result = await pool.query(
+    "SELECT * FROM password_reset_requests WHERE status = 'pending' ORDER BY created_at DESC"
+  );
+  res.json(result.rows);
+}));
 
-router.get('/files/:id/download', async (req, res) => {
-  const fileId = parseInt(req.params.id);
-  try {
-    const result = await pool.query('SELECT * FROM file_library WHERE id = $1', [fileId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'File not found' });
-    const file = result.rows[0];
-    if (file.file_path?.startsWith('http')) {
-      return res.redirect(file.file_path);
-    }
-    res.sendFile(path.resolve(file.file_path));
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to download file' });
+router.post('/admin/password-reset-requests/:id/dismiss', h(async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
   }
+  await pool.query(
+    "UPDATE password_reset_requests SET status = 'dismissed', resolved_at = CURRENT_TIMESTAMP, resolved_by = $2 WHERE id = $1",
+    [parseInt(req.params.id, 10), req.user.id]
+  );
+  res.json({ success: true });
+}));
+
+// Marks a request done (the admin then uses the reset-password endpoint)
+router.post('/admin/password-reset-requests/:id/resolve', h(async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  await pool.query(
+    "UPDATE password_reset_requests SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolved_by = $2 WHERE id = $1",
+    [parseInt(req.params.id, 10), req.user.id]
+  );
+  res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// File library
+// ---------------------------------------------------------------------------
+router.get('/files', h(async (req, res) => {
+  const { category } = req.query;
+
+  const filtered = category && category !== 'all';
+  // LEFT JOIN: uploaded_by becomes NULL when an uploader is deleted, and an
+  // inner join would make those files disappear from the library
+  const query = filtered
+    ? "SELECT f.*, COALESCE(u.name, 'Deleted user') as uploader_name FROM file_library f LEFT JOIN users u ON f.uploaded_by = u.id WHERE f.category = $1 ORDER BY f.created_at DESC"
+    : "SELECT f.*, COALESCE(u.name, 'Deleted user') as uploader_name FROM file_library f LEFT JOIN users u ON f.uploaded_by = u.id ORDER BY f.created_at DESC";
+
+  const result = await pool.query(query, filtered ? [category] : []);
+  res.json(result.rows);
+}));
+
+router.post('/files', upload.single('file'), h(async (req, res) => {
+  const { title, description, category } = req.body;
+  if (!title || !title.trim() || !req.file) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'title and file are required' });
+  }
+
+  const filePath = req.file.secure_url || req.file.url || req.file.path;
+  const result = await pool.query(
+    'INSERT INTO file_library (uploaded_by, title, description, category, filename, original_filename, file_path, file_size, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+    [
+      req.user.id,
+      title,
+      description || '',
+      category || 'general',
+      req.file.filename || req.file.public_id,
+      req.file.originalname,
+      filePath,
+      req.file.size || req.file.bytes || 0,
+      req.file.mimetype
+    ]
+  );
+  res.json({ success: true, id: result.rows[0].id });
+}));
+
+// Uploaders can delete their own files; admins can delete any
+router.delete('/files/:id', h(async (req, res) => {
+  const fileId = parseInt(req.params.id, 10);
+  const result = isAdminUser(req.user)
+    ? await pool.query('DELETE FROM file_library WHERE id = $1', [fileId])
+    : await pool.query('DELETE FROM file_library WHERE id = $1 AND uploaded_by = $2', [fileId, req.user.id]);
+  res.json({ success: result.rowCount > 0 });
+}));
+
+router.get('/files/:id/download', h(async (req, res) => {
+  const fileId = parseInt(req.params.id, 10);
+  const result = await pool.query('SELECT * FROM file_library WHERE id = $1', [fileId]);
+  if (result.rows.length === 0) return res.status(404).json({ error: 'File not found' });
+  sendStoredFile(res, result.rows[0]);
+}));
+
+// ---------------------------------------------------------------------------
+// Error handler (must be last)
+// ---------------------------------------------------------------------------
+router.use((err, req, res, next) => {
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File too large (200MB max)' });
+  }
+  console.error('API error:', err);
+  res.status(500).json({ error: 'Server error' });
 });
 
 module.exports = router;

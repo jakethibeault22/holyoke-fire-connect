@@ -1,20 +1,15 @@
 const { pool } = require('../config/db');
-const crypto = require('crypto');
-
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
 
 async function initDatabase() {
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     console.log('Creating tables...');
-    
+
     // Users table
-await client.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -25,10 +20,15 @@ await client.query(`
         role VARCHAR(50) DEFAULT 'firefighter',
         status VARCHAR(20) DEFAULT 'pending',
         must_change_password BOOLEAN DEFAULT FALSE,
+        expo_push_token TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
+    // Columns added after the first release (no-ops when they already exist)
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS expo_push_token TEXT');
+
     // User roles table (for multiple roles)
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_roles (
@@ -38,7 +38,7 @@ await client.query(`
         UNIQUE(user_id, role)
       )
     `);
-    
+
     // Bulletins table
     await client.query(`
       CREATE TABLE IF NOT EXISTS bulletins (
@@ -50,7 +50,7 @@ await client.query(`
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -64,7 +64,7 @@ await client.query(`
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Thread participants table
     await client.query(`
       CREATE TABLE IF NOT EXISTS thread_participants (
@@ -74,7 +74,7 @@ await client.query(`
         UNIQUE(thread_id, user_id)
       )
     `);
-    
+
     // Attachments table
     await client.query(`
       CREATE TABLE IF NOT EXISTS attachments (
@@ -89,7 +89,7 @@ await client.query(`
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Bulletin reads table
     await client.query(`
       CREATE TABLE IF NOT EXISTS bulletin_reads (
@@ -100,7 +100,7 @@ await client.query(`
         UNIQUE(user_id, bulletin_id)
       )
     `);
-    
+
     // Message reads table
     await client.query(`
       CREATE TABLE IF NOT EXISTS message_reads (
@@ -111,20 +111,28 @@ await client.query(`
         UNIQUE(user_id, message_id)
       )
     `);
-    
-// Password reset requests table
+
+    // Password reset requests table. routes/api.js used to create its own
+    // version of this table (with username/name but no resolved_*), so the
+    // ALTERs below bring either version up to the full set of columns.
     await client.query(`
       CREATE TABLE IF NOT EXISTS password_reset_requests (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        username VARCHAR(255),
+        name VARCHAR(255),
         status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         resolved_at TIMESTAMP,
         resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL
       )
     `);
-    
-	// Push tokens table
+    await client.query('ALTER TABLE password_reset_requests ADD COLUMN IF NOT EXISTS username VARCHAR(255)');
+    await client.query('ALTER TABLE password_reset_requests ADD COLUMN IF NOT EXISTS name VARCHAR(255)');
+    await client.query('ALTER TABLE password_reset_requests ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP');
+    await client.query('ALTER TABLE password_reset_requests ADD COLUMN IF NOT EXISTS resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+
+    // Push tokens table (the API currently stores tokens in users.expo_push_token)
     await client.query(`
       CREATE TABLE IF NOT EXISTS push_tokens (
         id SERIAL PRIMARY KEY,
@@ -134,8 +142,8 @@ await client.query(`
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-	
-	// File library table
+
+    // File library table
     await client.query(`
       CREATE TABLE IF NOT EXISTS file_library (
         id SERIAL PRIMARY KEY,
@@ -151,48 +159,48 @@ await client.query(`
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-	
+
+    // Indexes for the queries the app runs constantly (inbox, threads, bulletins,
+    // attachments, and the cascading deletes the cleanup job triggers)
+    await client.query('CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_thread_participants_user ON thread_participants(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bulletins_category_created ON bulletins(category, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_attachments_bulletin ON attachments(bulletin_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_message_reads_message ON message_reads(message_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bulletin_reads_bulletin ON bulletin_reads(bulletin_id)');
+
     console.log('Tables created successfully');
-	
-	
-    // Check if super admin exists
-    const adminCheck = await client.query(
-      "SELECT * FROM users WHERE username = 'admin'"
-    );
-    
-    if (adminCheck.rows.length === 0) {
-      console.log('Creating super admin user...');
-      const adminPassword = hashPassword('admin123');
-      
-      const result = await client.query(
-        `INSERT INTO users (email, name, username, password_hash, is_admin, role, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id`,
-        ['admin@holyokefire.com', 'Administrator', 'admin', adminPassword, 1, 'admin', 'active']
-      );
-      
-      const adminId = result.rows[0].id;
-      
-      // Add admin role to user_roles table
-      await client.query(
-        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
-        [adminId, 'admin']
-      );
-      
-      console.log('Super admin created (username: admin, password: admin123)');
-    } else {
-      console.log('Super admin already exists');
-    }
-    
+
+    // NOTE: no default admin account is created here. server.js creates the first
+    // admin on startup, only if none exists, using the INITIAL_ADMIN_PASSWORD
+    // environment variable.
+
     await client.query('COMMIT');
     console.log('Database initialization completed successfully');
-    
+
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error initializing database:', err);
     throw err;
   } finally {
     client.release();
+  }
+
+  // Logins are case-insensitive (LOWER(username)), so two usernames that differ
+  // only by case would be ambiguous. Enforce uniqueness the same way. This is
+  // outside the transaction so that existing duplicates can't block startup.
+  try {
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username))');
+  } catch (err) {
+    console.warn('⚠ Could not enforce case-insensitive unique usernames. Duplicates may already exist:', err.message);
+    try {
+      const dupes = await pool.query(
+        'SELECT LOWER(username) AS username, COUNT(*) FROM users GROUP BY LOWER(username) HAVING COUNT(*) > 1'
+      );
+      dupes.rows.forEach(d => console.warn(`  duplicate username (case-insensitive): ${d.username} x${d.count}`));
+    } catch (e) { /* ignore */ }
   }
 }
 

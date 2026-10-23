@@ -49,8 +49,21 @@ const ROLE_LABELS = {
   'super_user': 'Super User',
 };
 
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  const res = await originalFetch(...args);
+  const url = String(args[0]);
+  if (res.status === 401 && !url.includes('/api/login') && !url.includes('/api/me')) {
+    localStorage.removeItem('user');
+    localStorage.removeItem('currentView');
+    window.location.reload();
+  }
+  return res;
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [newPasswordValue, setNewPasswordValue] = useState("");
@@ -159,29 +172,26 @@ export default function App() {
       fetchFiles();
     }
   }, [user, view, fileCategory]);
-  
-  // Save user to localStorage whenever user changes
-useEffect(() => {
-  if (user) {
-    localStorage.setItem('user', JSON.stringify(user));
-  }
-}, [user]);
 
-// Load user and view from localStorage when app starts
+// Restore the session on page load (the server checks the session cookie)
 useEffect(() => {
-  const savedUser = localStorage.getItem('user');
   const savedView = localStorage.getItem('currentView');
-  
-  if (savedUser) {
-    const parsedUser = JSON.parse(savedUser);
-    setUser(parsedUser);
-    
-    // Set view after user is set
-    if (savedView) {
-      setView(savedView);
-    }
-  }
-}, []); // Empty dependency array - only runs once on mount
+  localStorage.removeItem('user');
+  fetch('/api/me')
+    .then(res => (res.ok ? res.json() : null))
+    .then(data => {
+      if (data && data.id) {
+        setUser(data);
+        if (savedView) setView(savedView);
+        // A reload shouldn't let someone skip a forced password change
+        if (data.must_change_password) setShowPasswordChange(true);
+      } else {
+        localStorage.removeItem('currentView');
+      }
+    })
+    .catch(() => {})
+    .finally(() => setAuthChecked(true));
+}, []);
 
 // Save view whenever it changes (keep this one)
 useEffect(() => {
@@ -205,12 +215,6 @@ useEffect(() => {
     messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }
 }, [threadMessages, selectedThread]);
-
-useEffect(() => {
-    if (user && view === 'files') {
-      fetchFiles();
-    }
-  }, [user, view, fileCategory]);
 
 // Auto-mark messages as read when viewing a thread (only messages FROM others)
 useEffect(() => {
@@ -343,8 +347,8 @@ const handlePasswordChange = async () => {
       return;
     }
     
-    if (newPasswordValue.length < 6) {
-      setPasswordChangeError("Password must be at least 6 characters");
+        if (newPasswordValue.length < 8) {
+      setPasswordChangeError("Password must be at least 8 characters");
       return;
     }
     
@@ -450,8 +454,8 @@ const handleForgotPassword = async () => {
       return;
     }
     
-    if (regPassword.length < 6) {
-      setRegError("Password must be at least 6 characters");
+        if (regPassword.length < 8) {
+      setRegError("Password must be at least 8 characters");
       return;
     }
     
@@ -483,11 +487,13 @@ const handleForgotPassword = async () => {
     }
   };
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (err) {}
   setUser(null);
   localStorage.removeItem('user');
   localStorage.removeItem('currentView');  // ADD THIS LINE
-  setView("bulletins");
+    setView("bulletins");
+  window.location.reload();
 };
 
   const fetchPendingUsers = async () => {
@@ -1227,6 +1233,8 @@ const handleDeleteUser = async (userId) => {
     );
   };
   
+if (!authChecked) return null;
+
 if (!user) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4">
