@@ -1501,11 +1501,11 @@ if (!user) {
   
 
     return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="h-screen bg-gray-100 flex overflow-hidden">
 
 
       {/* Sidebar Navigation */}
-      <div className="hidden lg:block w-64 bg-red-800 text-white min-h-screen p-6 flex flex-col">
+      <div className="hidden lg:block w-64 bg-red-800 text-white h-screen overflow-y-auto p-6 flex flex-col">
         <div className="mb-12">
           <h1 className="text-xl font-bold">Holyoke Fire Connect</h1>
         </div>
