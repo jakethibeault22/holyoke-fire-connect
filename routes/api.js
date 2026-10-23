@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { pool } = require('../config/db');
 
 const {
@@ -148,7 +149,12 @@ const CATEGORY_LABELS = {
 // ---------------------------------------------------------------------------
 // Authentication middleware
 // ---------------------------------------------------------------------------
-const publicRoutes = ['/login', '/register', '/logout', '/request-password-reset'];
+// '/display/feed' is authenticated by its own display key inside the route
+const publicRoutes = ['/login', '/register', '/logout', '/request-password-reset', '/display/feed'];
+
+// Firehouse display options
+const DISPLAY_DURATIONS = [60, 240, 720, 1440, 4320, 10080]; // minutes: 1h, 4h, 12h, 24h, 3d, 7d
+const NO_DISPLAY_CATEGORIES = ['commissioners'];             // never shown on the wall TVs
 
 const requireAuth = async (req, res, next) => {
   if (publicRoutes.includes(req.path)) {
@@ -473,8 +479,19 @@ router.get('/bulletins/all', h(async (req, res) => {
 }));
 
 router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
-  const { title, body } = req.body;
+    const { title, body } = req.body;
   const category = req.body.category || 'west-wing';
+
+  // Optional: show on the firehouse displays for N minutes (0 = board only)
+  const displayMinutes = parseInt(req.body.displayMinutes, 10) || 0;
+  if (displayMinutes !== 0 && !DISPLAY_DURATIONS.includes(displayMinutes)) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'Invalid display duration' });
+  }
+  if (displayMinutes > 0 && NO_DISPLAY_CATEGORIES.includes(category)) {
+    discardUploads(req);
+    return res.status(400).json({ error: 'Bulletins in this category cannot be shown on the displays' });
+  }
 
   if (!title || !title.trim() || !body || !body.trim()) {
     discardUploads(req);
@@ -482,7 +499,7 @@ router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
   }
 
   // addBulletin checks canPostBulletin for this user and category
-  const result = await addBulletin(title, body, category, req.user.id);
+  const result = await addBulletin(title, body, category, req.user.id, displayMinutes);
 
   if (result.error) {
     discardUploads(req);
@@ -525,6 +542,84 @@ router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
   }
 
   res.json({ success: true, id: bulletinId });
+}));
+
+// ---------------------------------------------------------------------------
+// Firehouse displays (wall TVs)
+// ---------------------------------------------------------------------------
+const hashDisplayKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
+
+// Read-only feed for the display computers. Authenticated by display key
+// (see publicRoutes above), not by a user login, and it only ever returns
+// bulletins that were flagged for the displays and haven't expired.
+router.get('/display/feed', h(async (req, res) => {
+  const key = req.query.key || req.get('X-Display-Key');
+  if (!key) return res.status(401).json({ error: 'Display key required' });
+
+  const device = await pool.query(
+    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHERE key_hash = $1 AND revoked_at IS NULL RETURNING id',
+    [hashDisplayKey(key)]
+  );
+  if (device.rows.length === 0) return res.status(401).json({ error: 'Invalid display key' });
+
+  const result = await pool.query(`
+    SELECT b.id, b.title, b.body, b.category, u.name AS author_name,
+           (EXTRACT(EPOCH FROM (b.display_until - CURRENT_TIMESTAMP)) * 1000)::bigint AS ms_remaining,
+           (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - b.created_at)) * 1000)::bigint AS age_ms
+    FROM bulletins b
+    JOIN users u ON b.user_id = u.id
+    WHERE b.display_until > CURRENT_TIMESTAMP
+    ORDER BY b.created_at DESC
+    LIMIT 20
+  `);
+
+  res.json({
+    bulletins: result.rows.map(b => ({
+      ...b,
+      category_label: CATEGORY_LABELS[b.category] || (b.category.charAt(0).toUpperCase() + b.category.slice(1))
+    }))
+  });
+}));
+
+router.get('/display/keys', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  const result = await pool.query(`
+    SELECT id, name, created_at,
+           EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_seen))::int AS seen_ago_s
+    FROM display_keys
+    WHERE revoked_at IS NULL
+    ORDER BY created_at
+  `);
+  res.json(result.rows);
+}));
+
+router.post('/display/keys', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+
+  const name = String(req.body.name || '').trim().slice(0, 100);
+  if (!name) return res.status(400).json({ error: 'A name is required' });
+
+  const count = await pool.query('SELECT COUNT(*) FROM display_keys WHERE revoked_at IS NULL');
+  if (Number(count.rows[0].count) >= 20) {
+    return res.status(400).json({ error: 'Too many active display links. Revoke one first.' });
+  }
+
+  // The key is shown once; only its hash is stored
+  const key = crypto.randomBytes(32).toString('hex');
+  const result = await pool.query(
+    'INSERT INTO display_keys (name, key_hash) VALUES ($1, $2) RETURNING id, name',
+    [name, hashDisplayKey(key)]
+  );
+  res.json({ id: result.rows[0].id, name: result.rows[0].name, key });
+}));
+
+router.delete('/display/keys/:id', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  await pool.query(
+    'UPDATE display_keys SET revoked_at = CURRENT_TIMESTAMP WHERE id = $1 AND revoked_at IS NULL',
+    [parseInt(req.params.id, 10) || 0]
+  );
+  res.json({ success: true });
 }));
 
 router.get('/bulletins/permissions/:category', h(async (req, res) => {

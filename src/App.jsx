@@ -1,6 +1,7 @@
 // Build timestamp: 2025-11-21-v1
 
 import { useState, useEffect, useRef } from "react";
+import DisplayKeys from "./DisplayKeys.jsx";
 import { Inbox, Megaphone, Send, PlusCircle, Trash2, X, LogOut, Paperclip, Download, Users, Edit, CheckCircle, XCircle, UserPlus, FileText, File, Menu } from "lucide-react";
 
 function Card({ children, className = "", onClick }) {
@@ -91,6 +92,7 @@ export default function App() {
   const [allBulletins, setAllBulletins] = useState([]);
   const [bulletinAttachments, setBulletinAttachments] = useState({});
   const [bulletinCategory, setBulletinCategory] = useState("west-wing");
+  const [displayMinutes, setDisplayMinutes] = useState(0);
   const [selectedBulletinCategory, setSelectedBulletinCategory] = useState("west-wing");
   const [bulletinPermissions, setBulletinPermissions] = useState({});
   const [inbox, setInbox] = useState([]);
@@ -819,6 +821,7 @@ const handlePostBulletin = async () => {
     formData.append('title', bulletinTitle);
     formData.append('body', bulletinBody);
     formData.append('category', bulletinCategory);
+    formData.append('displayMinutes', bulletinCategory === 'commissioners' ? 0 : displayMinutes);
     formData.append('userId', user.id);
 
     bulletinFiles.forEach(file => {
@@ -834,12 +837,13 @@ const handlePostBulletin = async () => {
     if (data.success) {
       setBulletinTitle("");
       setBulletinBody("");
-      setBulletinFiles([]);
+            setBulletinFiles([]);
+      setDisplayMinutes(0);
       setShowBulletinForm(false);
       fetchBulletins(selectedBulletinCategory);
       fetchAllBulletins();
     } else if (data.error) {
-      console.error('Error posting bulletin:', data.error);
+      alert(data.error);
     }
   } catch (err) {
     console.error('Error posting bulletin:', err);
@@ -1796,6 +1800,24 @@ if (!user) {
                         </div>
                       )}
                     </div>
+                    {bulletinCategory !== 'commissioners' && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Show on firehouse displays</label>
+                        <select
+                          value={displayMinutes}
+                          onChange={(e) => setDisplayMinutes(Number(e.target.value))}
+                          className="w-full p-2 border rounded"
+                        >
+                          <option value={0}>No (bulletin board only)</option>
+                          <option value={60}>Yes, for 1 hour</option>
+                          <option value={240}>Yes, for 4 hours</option>
+                          <option value={720}>Yes, for 12 hours</option>
+                          <option value={1440}>Yes, for 24 hours</option>
+                          <option value={4320}>Yes, for 3 days</option>
+                          <option value={10080}>Yes, for 1 week</option>
+                        </select>
+                      </div>
+                    )}
                     <Button onClick={handlePostBulletin} className="w-full">
                       Post
                     </Button>
@@ -2467,6 +2489,8 @@ if (!user) {
   <span className="hidden sm:inline">Log Out</span>
 </button>
 </div>
+
+            <DisplayKeys />
 
             {/* Pending Approvals Banner */}
             {pendingUsers.length > 0 && (

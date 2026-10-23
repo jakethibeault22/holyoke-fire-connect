@@ -51,6 +51,22 @@ async function initDatabase() {
       )
     `);
 
+        // Firehouse displays: a bulletin flagged for the wall TVs carries an expiry time
+    await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_until TIMESTAMP');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bulletins_display_until ON bulletins(display_until)');
+
+    // One revocable key per display computer (only a hash of the key is stored)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS display_keys (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        key_hash VARCHAR(64) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP,
+        revoked_at TIMESTAMP
+      )
+    `);
+
     // Messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (
