@@ -558,7 +558,7 @@ router.get('/display/feed', h(async (req, res) => {
   if (!key) return res.status(401).json({ error: 'Display key required' });
 
   const device = await pool.query(
-    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHE    'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHERE key_hash = $1 AND revoked_at IS NULL RETURNING id, rotate_seconds',RE key_hash = $1 AND revoked_at IS NULL RETURNING id, rotate_seconds',
+        'UPDATE display_keys SET last_seen = CURRENT_TIMESTAMP WHERE key_hash = $1 AND revoked_at IS NULL RETURNING id, rotate_seconds',
     [hashDisplayKey(key)]
   );
   if (device.rows.length === 0) return res.status(401).json({ error: 'Invalid display key' });
