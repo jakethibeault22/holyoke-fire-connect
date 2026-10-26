@@ -154,6 +154,25 @@ app.listen(PORT, '0.0.0.0', async () => {
     }, 6 * 60 * 60 * 1000); // Check every 6 hours
 
   } catch (err) {
-    console.error('✗ Cleanup initialization error:', err.message);
+        console.error('✗ Cleanup initialization error:', err.message);
+  }
+
+  // Daily encrypted database backup (needs BACKUP_ENCRYPTION_KEY and Cloudinary;
+  // keeps the newest 7). Checked a couple of minutes after startup, then every 6 hours.
+  try {
+    const backup = require('./scripts/backup');
+    const runBackupCheck = async () => {
+      try {
+        const result = await backup.runScheduledBackupIfDue({ pool });
+        if (result.created) console.log(`✓ Backup created: ${result.created.name}`);
+        else if (result.skipped) console.log(`Backup check: ${result.skipped}`);
+      } catch (err) {
+        console.error('✗ Scheduled backup failed:', (err && err.message) || err);
+      }
+    };
+    setTimeout(runBackupCheck, 2 * 60 * 1000);
+    setInterval(runBackupCheck, 6 * 60 * 60 * 1000);
+  } catch (err) {
+    console.error('✗ Backup scheduler error:', err.message);
   }
 });

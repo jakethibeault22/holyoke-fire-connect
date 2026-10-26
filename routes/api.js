@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const backup = require('../scripts/backup');
 const { pool } = require('../config/db');
 
 const {
@@ -638,6 +639,63 @@ router.delete('/display/keys/:id', h(async (req, res) => {
     [parseInt(req.params.id, 10) || 0]
   );
   res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Database backups (admin only). Files are encrypted with BACKUP_ENCRYPTION_KEY.
+// ---------------------------------------------------------------------------
+const requireBackupAdmin = (req, res) => {
+  if (!isAdminUser(req.user)) {
+    res.status(403).json({ error: 'Admin access required' });
+    return false;
+  }
+  return true;
+};
+
+router.get('/backups', h(async (req, res) => {
+  if (!requireBackupAdmin(req, res)) return;
+  res.json(await backup.getStatus());
+}));
+
+router.post('/backups', h(async (req, res) => {
+  if (!requireBackupAdmin(req, res)) return;
+  if (!backup.getKey()) {
+    return res.status(400).json({ error: 'BACKUP_ENCRYPTION_KEY is not set on the server' });
+  }
+  try {
+    const created = await backup.createStoredBackup({ pool });
+    console.log(`Backup created by ${req.user.username}: ${created.name} (${created.bytes} bytes)`);
+    res.json({ success: true, backup: created });
+  } catch (err) {
+    console.error('Backup failed:', err);
+    res.status(500).json({ error: (err && err.message) || 'Backup failed' });
+  }
+}));
+
+// Fresh encrypted copy streamed straight to the admin's browser (nothing is stored)
+router.get('/backups/download-now', h(async (req, res) => {
+  if (!requireBackupAdmin(req, res)) return;
+  if (!backup.getKey()) {
+    return res.status(400).json({ error: 'BACKUP_ENCRYPTION_KEY is not set on the server' });
+  }
+  const { buffer, name } = await backup.createEncryptedBackup({ pool });
+  console.log(`Backup downloaded by ${req.user.username}: ${name}`);
+  res.set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${name}"`
+  });
+  res.send(buffer);
+}));
+
+// A stored backup: redirect to a signed Cloudinary link (the file is encrypted anyway)
+router.get('/backups/file', h(async (req, res) => {
+  if (!requireBackupAdmin(req, res)) return;
+  const id = String(req.query.id || '');
+  const cloud = backup.getCloud();
+  if (!cloud || !backup.isBackupId(id)) {
+    return res.status(400).json({ error: 'Invalid backup' });
+  }
+  res.redirect(backup.signedUrl(id, cloud));
 }));
 
 router.get('/bulletins/permissions/:category', h(async (req, res) => {
