@@ -94,6 +94,7 @@ export default function App() {
   const [bulletinAttachments, setBulletinAttachments] = useState({});
   const [bulletinCategory, setBulletinCategory] = useState("west-wing");
   const [displayMinutes, setDisplayMinutes] = useState(0);
+  const [adminTab, setAdminTab] = useState("users");
   const [selectedBulletinCategory, setSelectedBulletinCategory] = useState("west-wing");
   const [bulletinPermissions, setBulletinPermissions] = useState({});
   const [inbox, setInbox] = useState([]);
@@ -2479,8 +2480,8 @@ if (!user) {
           <div className="mx-auto px-4">
             <div className="mb-6 flex justify-between items-start">
   <div>
-    <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
-    <p className="text-gray-600 mt-1">Manage users, roles, and pending approvals</p>
+    <h2 className="text-3xl font-bold text-gray-800">Admin Panel</h2>
+    <p className="text-gray-600 mt-1">Users, apron displays, approvals, and backups</p>
   </div>
 <button
   onClick={handleLogout}
@@ -2491,10 +2492,44 @@ if (!user) {
 </button>
 </div>
 
-            <DisplayKeys />
+            {/* Admin tabs */}
+            <div className="mb-6 border-b border-gray-300 flex flex-wrap gap-1">
+              {[
+                ['users', 'User Management'],
+                ['apron', 'Apron Panel'],
+                ['authorization', 'Authorization'],
+                ['backups', 'Backup & Restore']
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setAdminTab(key)}
+                  className={`px-4 py-2 -mb-px font-semibold border-b-2 transition flex items-center gap-2 ${
+                    adminTab === key
+                      ? 'border-red-700 text-red-800'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  {label}
+                  {key === 'authorization' && (pendingUsers.length + passwordResetRequests.length) > 0 && (
+                    <span className="bg-red-600 text-white text-xs font-bold rounded-full px-2 py-0.5">
+                      {pendingUsers.length + passwordResetRequests.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {adminTab === 'apron' && <DisplayKeys />}
+            {adminTab === 'backups' && <BackupPanel />}
+
+            {adminTab === 'authorization' && pendingUsers.length === 0 && passwordResetRequests.length === 0 && (
+              <div className="bg-white border rounded-lg shadow-sm p-6 text-gray-600">
+                Nothing is waiting for approval right now.
+              </div>
+            )}
 
             {/* Pending Approvals Banner */}
-            {pendingUsers.length > 0 && (
+            {adminTab === 'authorization' && pendingUsers.length > 0 && (
               <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
@@ -2538,7 +2573,7 @@ if (!user) {
             )}
 
 {/* Password Reset Requests Banner */}
-            {passwordResetRequests.length > 0 && (
+            {adminTab === 'authorization' && passwordResetRequests.length > 0 && (
               <div className="mb-6 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-lg shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
@@ -2583,7 +2618,7 @@ if (!user) {
               </div>
             )}
 			
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 250px)' }}>
+            <div className={adminTab === 'users' ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "hidden"} style={{ height: 'calc(100vh - 330px)' }}>
               {/* Left Column - User List */}
               <div className="lg:col-span-1 h-full">
                 <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col">
