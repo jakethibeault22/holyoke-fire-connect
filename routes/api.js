@@ -687,6 +687,63 @@ router.get('/backups/download-now', h(async (req, res) => {
   res.send(buffer);
 }));
 
+// Restore from a stored backup (?id=...) or an uploaded .hfcb file (raw request body).
+//   ?mode=preview  (default) decrypts it and reports what it contains vs. what's there now
+//   ?mode=restore  replaces ALL current data; needs the header X-Confirm: RESTORE.
+//                  A safety copy of the current data is saved to Cloudinary first.
+router.post('/backups/restore', express.raw({ type: 'application/octet-stream', limit: '25mb' }), h(async (req, res) => {
+  if (!requireBackupAdmin(req, res)) return;
+  if (!backup.getKey()) {
+    return res.status(400).json({ error: 'BACKUP_ENCRYPTION_KEY is not set on the server' });
+  }
+
+  const cloud = backup.getCloud();
+  let encrypted;
+  try {
+    if (Buffer.isBuffer(req.body) && req.body.length) {
+      encrypted = req.body;
+    } else {
+      const id = String(req.query.id || '');
+      if (!backup.isBackupId(id)) {
+        return res.status(400).json({ error: 'Choose a backup to restore' });
+      }
+      encrypted = await backup.fetchStored(id, { cloud });
+    }
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  let data;
+  try {
+    data = backup.parseBackup(backup.decrypt(encrypted));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const problem = backup.checkRestorable(data);
+  if (problem) return res.status(400).json({ error: problem });
+
+  if (req.query.mode !== 'restore') {
+    return res.json({
+      created_at: data.created_at,
+      counts: backup.countRows(data),
+      current: await backup.currentCounts(pool)
+    });
+  }
+
+  if (req.get('X-Confirm') !== 'RESTORE') {
+    return res.status(400).json({ error: 'Type RESTORE to confirm' });
+  }
+  try {
+    console.log(`RESTORE started by ${req.user.username} (backup dated ${data.created_at})`);
+    const result = await backup.restoreWithSafetyCopy({ pool, cloud, data });
+    console.log(`RESTORE finished by ${req.user.username}; safety copy: ${result.safety.name}`);
+    res.json({ success: true, counts: result.counts, safety: result.safety });
+  } catch (err) {
+    console.error('Restore failed:', err);
+    res.status(500).json({ error: (err && err.message) || 'Restore failed' });
+  }
+}));
+
 // A stored backup: redirect to a signed Cloudinary link (the file is encrypted anyway)
 router.get('/backups/file', h(async (req, res) => {
   if (!requireBackupAdmin(req, res)) return;
