@@ -1,10 +1,11 @@
 // Encrypted database backups.
 //
-//  - dumpDatabase()          reads every table in one consistent snapshot
-//  - encrypt() / decrypt()   gzip + AES-256-GCM, key from BACKUP_ENCRYPTION_KEY
-//  - createStoredBackup()    uploads an encrypted snapshot to Cloudinary (private) and keeps the newest 7
-//  - runScheduledBackupIfDue() called by server.js; makes a backup if none exists from the last ~23 hours
-//  - restoreBackup()         used by scripts/restore-backup.js (command line only, not the web app)
+//  - dumpDatabase()            reads every table in one consistent snapshot
+//  - encrypt() / decrypt()     gzip + AES-256-GCM, key from BACKUP_ENCRYPTION_KEY
+//  - createStoredBackup()      uploads an encrypted snapshot to Cloudinary (private)
+//  - runScheduledBackupIfDue() called by server.js; makes a daily backup if none is recent
+//  - restoreWithSafetyCopy()   used by the admin portal's Restore button
+//  - restoreBackup()           the restore itself (also used by scripts/restore-backup.js)
 //
 // A backup contains every message and every password hash, so it is only ever
 // stored or sent encrypted. Losing BACKUP_ENCRYPTION_KEY means losing the ability
@@ -30,13 +31,18 @@ const TABLES = [
 ];
 
 const BACKUP_FOLDER = 'hfc-backups';
-const KEEP = 7;
+const DAILY_PREFIX = 'hfc-backup';            // daily + "Back up now"
+const SAFETY_PREFIX = 'hfc-prerestore';       // automatic copy taken just before a restore
+const KEEP = 7;                               // daily backups kept
+const KEEP_SAFETY = 3;                        // safety copies kept
 const MIN_KEY_LENGTH = 16;
 const MAGIC = Buffer.from('HFCB1');
 const SALT_LEN = 16;
 const IV_LEN = 12;
 const TAG_LEN = 16;
 const SCHEDULE_MIN_AGE_MS = 23 * 60 * 60 * 1000;
+
+let restoreInProgress = false;
 
 // ---------------------------------------------------------------------------
 // Configuration helpers
@@ -141,15 +147,15 @@ function countRows(data) {
   return counts;
 }
 
-function backupName(date = new Date()) {
+function backupName(date = new Date(), prefix = DAILY_PREFIX) {
   const stamp = date.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
-  return `hfc-backup-${stamp}.hfcb`;
+  return `${prefix}-${stamp}.hfcb`;
 }
 
-async function createEncryptedBackup({ pool, now = new Date() } = {}) {
+async function createEncryptedBackup({ pool, now = new Date(), prefix = DAILY_PREFIX } = {}) {
   const data = await dumpDatabase(pool);
   const buffer = encrypt(Buffer.from(JSON.stringify(data), 'utf8'));
-  return { buffer, name: backupName(now), counts: countRows(data) };
+  return { buffer, name: backupName(now, prefix), counts: countRows(data) };
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +166,8 @@ const isBackupId = (id) =>
   id.startsWith(`${BACKUP_FOLDER}/`) &&
   /^[A-Za-z0-9_\-/.]+$/.test(id) &&
   !id.includes('..');
+
+const kindOf = (id) => (id.split('/').pop().startsWith(`${SAFETY_PREFIX}-`) ? 'safety' : 'daily');
 
 function uploadBuffer(cloud, buffer, publicId) {
   return new Promise((resolve, reject) => {
@@ -182,29 +190,37 @@ async function listStored(cloud = getCloud()) {
     .map(r => ({
       id: r.public_id,
       name: r.public_id.split('/').pop(),
+      kind: kindOf(r.public_id),
       created_at: r.created_at,
       bytes: r.bytes
     }))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }
 
-async function pruneStored(cloud, keep = KEEP) {
+// Daily backups and safety copies are trimmed separately, so a restore never
+// pushes a daily backup out of the list
+async function pruneStored(cloud) {
   const all = await listStored(cloud);
-  const old = all.slice(keep).map(b => b.id);
+  const old = [
+    ...all.filter(b => b.kind === 'daily').slice(KEEP),
+    ...all.filter(b => b.kind === 'safety').slice(KEEP_SAFETY)
+  ].map(b => b.id);
   if (old.length) {
     await cloud.api.delete_resources(old, { resource_type: 'raw', type: 'authenticated' });
   }
   return old.length;
 }
 
-async function createStoredBackup({ pool, cloud = getCloud(), now = new Date() } = {}) {
+async function createStoredBackup({ pool, cloud = getCloud(), now = new Date(), kind = 'daily' } = {}) {
   if (!cloud) throw new Error('Cloudinary is not configured');
-  const { buffer, name, counts } = await createEncryptedBackup({ pool, now });
+  const prefix = kind === 'safety' ? SAFETY_PREFIX : DAILY_PREFIX;
+  const { buffer, name, counts } = await createEncryptedBackup({ pool, now, prefix });
   const uploaded = await uploadBuffer(cloud, buffer, `${BACKUP_FOLDER}/${name}`);
   await pruneStored(cloud);
   return {
     id: uploaded.public_id,
     name,
+    kind,
     created_at: uploaded.created_at,
     bytes: uploaded.bytes,
     counts
@@ -213,6 +229,15 @@ async function createStoredBackup({ pool, cloud = getCloud(), now = new Date() }
 
 function signedUrl(id, cloud = getCloud()) {
   return cloud.url(id, { resource_type: 'raw', type: 'authenticated', sign_url: true, secure: true });
+}
+
+// Downloads a stored (still encrypted) backup so it can be restored
+async function fetchStored(id, { cloud = getCloud(), fetchImpl = fetch } = {}) {
+  if (!cloud) throw new Error('Cloudinary is not configured');
+  if (!isBackupId(id)) throw new Error('Invalid backup');
+  const res = await fetchImpl(signedUrl(id, cloud));
+  if (!res.ok) throw new Error(`Could not download that backup (${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 async function getStatus() {
@@ -234,11 +259,11 @@ async function getStatus() {
   return status;
 }
 
-// Called by server.js every few hours; only makes a backup if the newest one is old
+// Called by server.js every few hours; only makes a backup if the newest daily one is old
 async function runScheduledBackupIfDue({ pool, cloud = getCloud(), now = new Date() } = {}) {
   if (!getKey()) return { skipped: 'BACKUP_ENCRYPTION_KEY not set' };
   if (!cloud) return { skipped: 'Cloudinary not configured' };
-  const stored = await listStored(cloud);
+  const stored = (await listStored(cloud)).filter(b => b.kind === 'daily');
   if (stored.length && now.getTime() - Date.parse(stored[0].created_at) < SCHEDULE_MIN_AGE_MS) {
     return { skipped: 'a recent backup already exists' };
   }
@@ -247,14 +272,41 @@ async function runScheduledBackupIfDue({ pool, cloud = getCloud(), now = new Dat
 }
 
 // ---------------------------------------------------------------------------
-// Restore (command line only: scripts/restore-backup.js)
+// Restore
 // ---------------------------------------------------------------------------
 const SAFE_NAME = /^[a-z_][a-z0-9_]*$/;
+const ADMIN_ROLES = ['admin', 'super_user'];
+
+// Returns a problem description, or null if the backup is safe to restore
+function checkRestorable(data) {
+  const users = data.tables && data.tables.users;
+  if (!Array.isArray(users) || users.length === 0) {
+    return 'This backup contains no users, so restoring it would lock everyone out.';
+  }
+  const hasAdmin = users.some(u => u.status === 'active' && ADMIN_ROLES.includes(u.role));
+  if (!hasAdmin) {
+    return 'This backup has no active admin account, so restoring it would lock everyone out.';
+  }
+  const unknown = Object.keys(data.tables).filter(t => !TABLES.includes(t));
+  if (unknown.length) return `Backup contains unexpected tables: ${unknown.join(', ')}`;
+  return null;
+}
+
+async function currentCounts(pool = getPool()) {
+  const counts = {};
+  for (const table of TABLES) {
+    const exists = await pool.query('SELECT to_regclass($1) IS NOT NULL AS ok', [`public.${table}`]);
+    if (!exists.rows[0].ok) continue;
+    const r = await pool.query(`SELECT COUNT(*)::int AS n FROM "${table}"`);
+    counts[table] = r.rows[0].n;
+  }
+  return counts;
+}
 
 async function restoreBackup(client, data) {
-  const present = TABLES.filter(t => data.tables[t]);
   const unknown = Object.keys(data.tables).filter(t => !TABLES.includes(t));
   if (unknown.length) throw new Error(`Backup contains unexpected tables: ${unknown.join(', ')}`);
+  const present = TABLES.filter(t => data.tables[t]);
 
   await client.query('BEGIN');
   try {
@@ -288,9 +340,34 @@ async function restoreBackup(client, data) {
   return countRows(data);
 }
 
+// The portal's Restore button: saves a safety copy of the CURRENT data first, then
+// replaces everything with the backup. If the safety copy can't be saved, nothing is touched.
+async function restoreWithSafetyCopy({ pool = getPool(), cloud = getCloud(), data, now = new Date() }) {
+  if (!cloud) throw new Error('Cloudinary must be configured so a safety copy can be saved before restoring');
+  const problem = checkRestorable(data);
+  if (problem) throw new Error(problem);
+  if (restoreInProgress) throw new Error('A restore is already running');
+
+  restoreInProgress = true;
+  try {
+    const safety = await createStoredBackup({ pool, cloud, now, kind: 'safety' });
+    const client = await pool.connect();
+    let counts;
+    try {
+      counts = await restoreBackup(client, data);
+    } finally {
+      client.release();
+    }
+    return { counts, safety };
+  } finally {
+    restoreInProgress = false;
+  }
+}
+
 module.exports = {
   TABLES,
   KEEP,
+  KEEP_SAFETY,
   BACKUP_FOLDER,
   getKey,
   getCloud,
@@ -305,8 +382,12 @@ module.exports = {
   listStored,
   pruneStored,
   signedUrl,
+  fetchStored,
   isBackupId,
   getStatus,
   runScheduledBackupIfDue,
-  restoreBackup
+  checkRestorable,
+  currentCounts,
+  restoreBackup,
+  restoreWithSafetyCopy
 };
