@@ -501,7 +501,8 @@ router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
   }
 
   // addBulletin checks canPostBulletin for this user and category
-  const result = await addBulletin(title, body, category, req.user.id, displayMinutes);
+  const result = await addBulletin(title, body, category, req.user.id, displayMinutes,
+    displayMinutes > 0 && req.body.displayCritical === 'true');
 
   if (result.error) {
     discardUploads(req);
@@ -583,6 +584,7 @@ router.get('/display/feed', h(async (req, res) => {
 
   const result = await pool.query(`
     SELECT b.id, b.title, b.body, b.category, u.name AS author_name,
+	           COALESCE(b.display_critical, false) AS critical,
            (EXTRACT(EPOCH FROM (b.display_until - CURRENT_TIMESTAMP)) * 1000)::bigint AS ms_remaining,
            (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - b.created_at)) * 1000)::bigint AS age_ms
     FROM bulletins b

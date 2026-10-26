@@ -53,6 +53,7 @@ async function initDatabase() {
 
         // Firehouse displays: a bulletin flagged for the wall TVs carries an expiry time
     await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_until TIMESTAMP');
+	await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_critical BOOLEAN DEFAULT FALSE');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bulletins_display_until ON bulletins(display_until)');
 
     // One revocable key per display computer (only a hash of the key is stored)

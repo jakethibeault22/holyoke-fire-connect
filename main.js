@@ -410,7 +410,7 @@ async function getBulletinsByCategory(category, userId = null) {
   return result.rows;
 }
 
-async function addBulletin(title, body, category, userId, displayMinutes = 0) {
+async function addBulletin(title, body, category, userId, displayMinutes = 0, displayCritical = false) {
   const user = await getUserById(userId);
   if (!user) {
     return { error: 'User not found' };
@@ -421,11 +421,12 @@ async function addBulletin(title, body, category, userId, displayMinutes = 0) {
   }
 
   const result = await pool.query(
-        `INSERT INTO bulletins (title, body, category, user_id, display_until)
+    `INSERT INTO bulletins (title, body, category, user_id, display_until, display_critical)
      VALUES ($1, $2, $3, $4,
-       CASE WHEN $5::int > 0 THEN CURRENT_TIMESTAMP + make_interval(mins => $5::int) ELSE NULL END)
+       CASE WHEN $5::int > 0 THEN CURRENT_TIMESTAMP + make_interval(mins => $5::int) ELSE NULL END,
+       $6::boolean)
      RETURNING id`,
-    [title, body, category, userId, displayMinutes]
+    [title, body, category, userId, displayMinutes, !!displayCritical && displayMinutes > 0]
   );
 
   return { lastInsertRowid: result.rows[0].id };

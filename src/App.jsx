@@ -94,6 +94,7 @@ export default function App() {
   const [bulletinAttachments, setBulletinAttachments] = useState({});
   const [bulletinCategory, setBulletinCategory] = useState("west-wing");
   const [displayMinutes, setDisplayMinutes] = useState(0);
+  const [displayCritical, setDisplayCritical] = useState(false);
   const [adminTab, setAdminTab] = useState("users");
   const [selectedBulletinCategory, setSelectedBulletinCategory] = useState("west-wing");
   const [bulletinPermissions, setBulletinPermissions] = useState({});
@@ -824,6 +825,7 @@ const handlePostBulletin = async () => {
     formData.append('body', bulletinBody);
     formData.append('category', bulletinCategory);
     formData.append('displayMinutes', bulletinCategory === 'commissioners' ? 0 : displayMinutes);
+	formData.append('displayCritical', displayCritical && displayMinutes > 0 && bulletinCategory !== 'commissioners' ? 'true' : 'false');
     formData.append('userId', user.id);
 
     bulletinFiles.forEach(file => {
@@ -841,6 +843,7 @@ const handlePostBulletin = async () => {
       setBulletinBody("");
             setBulletinFiles([]);
       setDisplayMinutes(0);
+	  setDisplayCritical(false);
       setShowBulletinForm(false);
       fetchBulletins(selectedBulletinCategory);
       fetchAllBulletins();
@@ -1818,6 +1821,20 @@ if (!user) {
                           <option value={4320}>Yes, for 3 days</option>
                           <option value={10080}>Yes, for 1 week</option>
                         </select>
+						                        {displayMinutes > 0 && (
+                          <label className="flex items-start gap-2 mt-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={displayCritical}
+                              onChange={(e) => setDisplayCritical(e.target.checked)}
+                              className="mt-1"
+                            />
+                            <span>
+                              <span className="font-medium text-red-700">Critical</span>: pin on the right side of the
+                              display (doesn't rotate) for the whole time
+                            </span>
+                          </label>
+                        )}
                       </div>
                     )}
                     <Button onClick={handlePostBulletin} className="w-full">
