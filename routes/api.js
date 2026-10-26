@@ -551,6 +551,23 @@ router.post('/bulletins', upload.array('files', 5), h(async (req, res) => {
 // ---------------------------------------------------------------------------
 const hashDisplayKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
 
+// Display keys are also stored encrypted (AES-256-GCM, key derived from SESSION_SECRET)
+// so an admin can view a link again. If SESSION_SECRET is ever changed, the saved links
+// become unreadable (the TVs keep working; just create a new link when you need to see one).
+const displayKeySecret = () => crypto.createHash('sha256').update('hfc-display-keys:' + SESSION_SECRET).digest();
+const encryptDisplayKey = (key) => {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', displayKeySecret(), iv);
+  const ct = Buffer.concat([cipher.update(String(key), 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64');
+};
+const decryptDisplayKey = (enc) => {
+  const buf = Buffer.from(enc, 'base64');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', displayKeySecret(), buf.subarray(0, 12));
+  decipher.setAuthTag(buf.subarray(12, 28));
+  return Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString('utf8');
+};
+
 // Read-only feed for the display computers. Authenticated by display key
 // (see publicRoutes above), not by a user login, and it only ever returns
 // bulletins that were flagged for the displays and haven't expired.
@@ -588,6 +605,7 @@ router.get('/display/keys', h(async (req, res) => {
   if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
   const result = await pool.query(`
         SELECT id, name, created_at, COALESCE(rotate_seconds, 0) AS rotate_seconds,
+           (key_enc IS NOT NULL) AS has_link,
            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_seen))::int AS seen_ago_s
     FROM display_keys
     WHERE revoked_at IS NULL
@@ -610,10 +628,28 @@ router.post('/display/keys', h(async (req, res) => {
   // The key is shown once; only its hash is stored
   const key = crypto.randomBytes(32).toString('hex');
   const result = await pool.query(
-    'INSERT INTO display_keys (name, key_hash) VALUES ($1, $2) RETURNING id, name',
-    [name, hashDisplayKey(key)]
+        'INSERT INTO display_keys (name, key_hash, key_enc) VALUES ($1, $2, $3) RETURNING id, name',
+    [name, hashDisplayKey(key), encryptDisplayKey(key)]
   );
   res.json({ id: result.rows[0].id, name: result.rows[0].name, key });
+}));
+
+// Lets an admin see a display link again (only for keys created since saved links were added)
+router.get('/display/keys/:id/link', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  const result = await pool.query(
+    'SELECT key_enc FROM display_keys WHERE id = $1 AND revoked_at IS NULL',
+    [parseInt(req.params.id, 10) || 0]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: 'Display not found' });
+  if (!result.rows[0].key_enc) {
+    return res.status(404).json({ error: 'This link was created before saved links existed. Create a new link to get one you can view later.' });
+  }
+  try {
+    res.json({ key: decryptDisplayKey(result.rows[0].key_enc) });
+  } catch (err) {
+    res.status(410).json({ error: 'This saved link can no longer be read. Create a new link.' });
+  }
 }));
 
 router.patch('/display/keys/:id', h(async (req, res) => {
@@ -635,7 +671,7 @@ router.patch('/display/keys/:id', h(async (req, res) => {
 router.delete('/display/keys/:id', h(async (req, res) => {
   if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
   await pool.query(
-    'UPDATE display_keys SET revoked_at = CURRENT_TIMESTAMP WHERE id = $1 AND revoked_at IS NULL',
+    'UPDATE display_keys SET revoked_at = CURRENT_TIMESTAMP, key_enc = NULL WHERE id = $1 AND revoked_at IS NULL',
     [parseInt(req.params.id, 10) || 0]
   );
   res.json({ success: true });

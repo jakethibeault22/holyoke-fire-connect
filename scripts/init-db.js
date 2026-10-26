@@ -70,6 +70,9 @@ async function initDatabase() {
         // Seconds each bulletin stays on screen (0 = automatic, based on length)
     await client.query('ALTER TABLE display_keys ADD COLUMN IF NOT EXISTS rotate_seconds INTEGER DEFAULT 0');
 
+    // The display key itself, encrypted, so an admin can view/copy a link again later
+    await client.query('ALTER TABLE display_keys ADD COLUMN IF NOT EXISTS key_enc TEXT');
+
     // Messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (

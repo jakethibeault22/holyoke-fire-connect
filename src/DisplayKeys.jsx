@@ -17,6 +17,9 @@ export default function DisplayKeys() {
   const [created, setCreated] = useState(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [links, setLinks] = useState({});       // id -> { url } | { error }  (loaded on demand)
+  const [shown, setShown] = useState({});       // id -> true while the link is expanded
+  const [copiedId, setCopiedId] = useState(null);
 
   const load = async () => {
     try {
@@ -82,6 +85,36 @@ export default function DisplayKeys() {
     load();
   };
 
+  const toggleLink = async (k) => {
+    if (shown[k.id]) {
+      setShown(s => ({ ...s, [k.id]: false }));
+      return;
+    }
+    setShown(s => ({ ...s, [k.id]: true }));
+    if (links[k.id] && links[k.id].url) return;
+    try {
+      const res = await fetch(`/api/display/keys/${k.id}/link`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setLinks(l => ({ ...l, [k.id]: { url: `${window.location.origin}/display?key=${data.key}` } }));
+      } else {
+        setLinks(l => ({ ...l, [k.id]: { error: data.error || 'Could not load the link' } }));
+      }
+    } catch (err) {
+      setLinks(l => ({ ...l, [k.id]: { error: 'Could not load the link' } }));
+    }
+  };
+
+  const copyLink = async (k) => {
+    try {
+      await navigator.clipboard.writeText(links[k.id].url);
+      setCopiedId(k.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      setCopiedId(null);
+    }
+  };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(created.url);
@@ -96,12 +129,13 @@ export default function DisplayKeys() {
       <h3 className="text-xl font-bold text-gray-800">Firehouse Displays</h3>
       <p className="text-gray-600 text-sm mt-1 mb-4">
         Each computer that drives the apron TVs gets its own link. Open the link once on that computer and it
-        stays signed in for display only. Revoke a link to cut that computer off.
+        stays signed in for display only. Use "Show link" to see, copy, or open a link again. Revoke a link to
+        cut that computer off.
       </p>
 
       {created && (
         <div className="mb-4 border-l-4 border-green-500 bg-green-50 p-4 rounded">
-          <p className="font-semibold text-green-800">Link for "{created.name}" (shown only once, copy it now):</p>
+          <p className="font-semibold text-green-800">Link for "{created.name}" (you can view it again any time with "Show link"):</p>
           <input
             readOnly
             value={created.url}
@@ -122,12 +156,13 @@ export default function DisplayKeys() {
       <div className="space-y-2 mb-4">
         {keys.length === 0 && <p className="text-sm text-gray-500">No display links yet.</p>}
         {keys.map(k => (
-          <div key={k.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+          <div key={k.id} className="bg-gray-50 p-3 rounded">
+           <div className="flex items-center justify-between">
             <div>
               <div className="font-semibold">{k.name}</div>
               <div className="text-xs text-gray-500">{seenText(k.seen_ago_s)}</div>
             </div>
-                        <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <label className="text-xs text-gray-500">
                 Time per bulletin
                 <select
@@ -146,10 +181,47 @@ export default function DisplayKeys() {
                   <option value={120}>2 minutes</option>
                 </select>
               </label>
+              <button onClick={() => toggleLink(k)} className="text-blue-700 text-sm font-semibold hover:underline">
+                {shown[k.id] ? 'Hide link' : 'Show link'}
+              </button>
               <button onClick={() => revoke(k)} className="text-red-600 text-sm font-semibold hover:underline">
                 Revoke
               </button>
             </div>
+           </div>
+           {shown[k.id] && (
+             <div className="mt-3">
+               {!links[k.id] && <p className="text-sm text-gray-500">Loading…</p>}
+               {links[k.id] && links[k.id].error && (
+                 <p className="text-sm text-amber-800 bg-amber-50 border-l-4 border-amber-500 p-2 rounded">
+                   {links[k.id].error}
+                 </p>
+               )}
+               {links[k.id] && links[k.id].url && (
+                 <>
+                   <input
+                     readOnly
+                     value={links[k.id].url}
+                     onFocus={(e) => e.target.select()}
+                     className="w-full p-2 border rounded font-mono text-xs bg-white"
+                   />
+                   <div className="mt-2 flex gap-2">
+                     <button onClick={() => copyLink(k)} className="bg-gray-800 text-white px-3 py-1 rounded text-sm">
+                       {copiedId === k.id ? 'Copied' : 'Copy link'}
+                     </button>
+                     <a
+                       href={links[k.id].url}
+                       target="_blank"
+                       rel="noreferrer"
+                       className="px-3 py-1 rounded text-sm border border-gray-400 text-gray-800 hover:bg-gray-100"
+                     >
+                       Open display
+                     </a>
+                   </div>
+                 </>
+               )}
+             </div>
+           )}
           </div>
         ))}
       </div>
