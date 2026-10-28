@@ -22,8 +22,14 @@ const fmt = (b) => (b >= 1024 * 1024 * 1024 ? `${(b / 1024 ** 3).toFixed(2)} GB`
   console.log(`Files in Cloudinary:     ${r.totalFiles}`);
   console.log(`Still used by the app:   ${r.referenced}`);
   console.log(`Unused (orphaned):       ${r.orphanCount}  (${fmt(r.orphanBytes)})`);
+  if (!del && r.orphans && r.orphans.length) {
+    console.log('\nUnused files (biggest first):');
+    r.orphans.slice(0, 100).forEach(o =>
+      console.log(`  ${fmt(o.bytes).padStart(9)}  ${String(o.created_at || '').slice(0, 10)}  ${o.resource_type.padEnd(5)}  ${o.public_id}`));
+    if (r.orphans.length > 100) console.log(`  ...and ${r.orphans.length - 100} more`);
+  }
   if (del) console.log(`Deleted:                 ${r.deleted}`);
-  else if (r.orphanCount) console.log('\nNothing was deleted. Run again with --delete to remove them.');
+  else if (r.orphanCount) console.log('\nNothing was deleted. Review the list, then run again with --delete to remove them.\n(The admin screen lets you untick files individually; this command deletes all of them.)');
   process.exit(0);
 })().catch(err => {
   console.error('Sweep failed:', err.message);

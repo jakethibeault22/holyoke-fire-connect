@@ -51,9 +51,10 @@ async function initDatabase() {
       )
     `);
 
-        // Firehouse displays: a bulletin flagged for the wall TVs carries an expiry time
+    // Firehouse displays: a bulletin flagged for the wall TVs carries an expiry time
     await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_until TIMESTAMP');
-	await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_critical BOOLEAN DEFAULT FALSE');
+    // Critical bulletins are pinned on the side of the display instead of rotating
+    await client.query('ALTER TABLE bulletins ADD COLUMN IF NOT EXISTS display_critical BOOLEAN DEFAULT FALSE');
     await client.query('CREATE INDEX IF NOT EXISTS idx_bulletins_display_until ON bulletins(display_until)');
 
     // One revocable key per display computer (only a hash of the key is stored)
@@ -68,7 +69,7 @@ async function initDatabase() {
       )
     `);
 
-        // Seconds each bulletin stays on screen (0 = automatic, based on length)
+    // Seconds each bulletin stays on screen (0 = automatic, based on length)
     await client.query('ALTER TABLE display_keys ADD COLUMN IF NOT EXISTS rotate_seconds INTEGER DEFAULT 0');
 
     // The display key itself, encrypted, so an admin can view/copy a link again later
@@ -112,6 +113,9 @@ async function initDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Attachments an admin has marked "keep" are never offered for deletion in the storage review
+    await client.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS keep_forever BOOLEAN DEFAULT FALSE');
 
     // Bulletin reads table
     await client.query(`

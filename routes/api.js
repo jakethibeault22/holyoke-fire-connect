@@ -227,7 +227,7 @@ try {
       return {
         folder: 'holyoke-fire-connect',
         resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
-                type: 'upload',
+        type: 'upload',
         public_id: `${baseName}.${ext}`,
         ...(isImage && !/^(gif|svg)$/.test(ext)
           ? { transformation: [{ width: 1920, height: 1920, crop: 'limit', quality: 'auto' }] }
@@ -838,10 +838,13 @@ router.post('/bulletins/mark-read', h(async (req, res) => {
 
 router.delete('/bulletins/:id', h(async (req, res) => {
   // deleteBulletin allows the author, or anyone with canDeleteBulletin for the category
-  const result = await deleteBulletin(parseInt(req.params.id, 10), req.user.id);
+  const bulletinId = parseInt(req.params.id, 10);
+  const files = await cloudFiles.filesOfBulletin(pool, bulletinId); // grab before the rows cascade away
+  const result = await deleteBulletin(bulletinId, req.user.id);
   if (result.error) {
     res.status(403).json(result);
   } else {
+    if (result.changes > 0) cloudFiles.destroyFiles(files); // free the storage (runs in the background)
     res.json({ success: result.changes > 0 });
   }
 }));
@@ -1060,11 +1063,6 @@ router.get('/messages/:messageId/read-receipts', h(async (req, res) => {
   res.json(result.rows);
 }));
 
-router.delete('/messages/:id', h(async (req, res) => {
-  const result = await deleteMessage(parseInt(req.params.id, 10), req.user.id);
-  res.json({ success: result.changes > 0 });
-}));
-
 router.get('/messages/:id/attachments', h(async (req, res) => {
   const messageId = parseInt(req.params.id, 10);
   if (!(await userInThreadOfMessage(req.user.id, messageId))) {
@@ -1099,7 +1097,7 @@ router.delete('/attachments/:id', h(async (req, res) => {
   if (!isAdminUser(req.user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
-    const attachmentId = parseInt(req.params.id, 10);
+  const attachmentId = parseInt(req.params.id, 10);
   const files = await cloudFiles.filesOfAttachment(pool, attachmentId);
   const result = await deleteAttachment(attachmentId);
   if (result.changes > 0) cloudFiles.destroyFiles(files);
@@ -1312,7 +1310,7 @@ router.delete('/files/:id', h(async (req, res) => {
   const result = isAdminUser(req.user)
     ? await pool.query('DELETE FROM file_library WHERE id = $1', [fileId])
     : await pool.query('DELETE FROM file_library WHERE id = $1 AND uploaded_by = $2', [fileId, req.user.id]);
-	  if (result.rowCount > 0) cloudFiles.destroyFiles(files);
+  if (result.rowCount > 0) cloudFiles.destroyFiles(files);
   res.json({ success: result.rowCount > 0 });
 }));
 
@@ -1335,8 +1333,16 @@ router.get('/storage/usage', h(async (req, res) => {
 
 router.post('/storage/sweep', h(async (req, res) => {
   if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  const body = req.body || {};
+  const del = body.delete === true;
+  if (del && !(Array.isArray(body.items) && body.items.length)) {
+    return res.status(400).json({ error: 'Choose at least one file to delete' });
+  }
   try {
-    const result = await cloudFiles.sweepOrphans(pool, { dryRun: !(req.body && req.body.delete === true) });
+    const result = await cloudFiles.sweepOrphans(pool, {
+      dryRun: !del,
+      only: del ? body.items.map(String) : null
+    });
     if (result.error) return res.status(400).json(result);
     res.json(result);
   } catch (err) {
@@ -1345,11 +1351,36 @@ router.post('/storage/sweep', h(async (req, res) => {
   }
 }));
 
+router.get('/storage/attachments', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  res.json(await cloudFiles.listOldAttachments(pool, {
+    days: req.query.days,
+    showKept: req.query.showKept === 'true'
+  }));
+}));
+
+router.post('/storage/attachments/keep', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  const { ids, keep } = req.body || {};
+  res.json({ updated: await cloudFiles.setKeepForever(pool, ids, keep !== false) });
+}));
+
+router.post('/storage/attachments/delete', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  const { ids } = req.body || {};
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Choose at least one file to delete' });
+  res.json(await cloudFiles.deleteAttachments(pool, ids));
+}));
+
 // ---------------------------------------------------------------------------
 // Error handler (must be last)
 // ---------------------------------------------------------------------------
 router.use((err, req, res, next) => {
-    if (err && /file size too large|too large/i.test(String(err.message || (err.error && err.error.message) || ''))) {
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File too large (100MB max)' });
+  }
+  // Cloudinary's free plan rejects photos over 10MB, videos over 100MB and other files over 10MB
+  if (err && /file size too large|too large/i.test(String(err.message || (err.error && err.error.message) || ''))) {
     return res.status(413).json({ error: 'File too large. Limits: photos 10MB, videos 100MB, documents 10MB.' });
   }
   console.error('API error:', err);
