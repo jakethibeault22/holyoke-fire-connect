@@ -1,9 +1,22 @@
 const { pool } = require('../config/db');
+const { destroyFiles } = require('./cloudinary-files');
 
 async function cleanupOldData() {
   console.log('Starting data cleanup...');
   
   try {
+    // Files belonging to the rows about to be deleted. The database rows go via
+    // CASCADE, but the files in Cloudinary must be removed separately or they
+    // would sit there using storage forever.
+    const oldBulletinFiles = await pool.query(`
+      SELECT filename, file_path, mime_type FROM attachments
+      WHERE bulletin_id IN (SELECT id FROM bulletins WHERE created_at < NOW() - INTERVAL '2 years')
+    `);
+    const oldMessageFiles = await pool.query(`
+      SELECT filename, file_path, mime_type FROM attachments
+      WHERE message_id IN (SELECT id FROM messages WHERE created_at < NOW() - INTERVAL '1 year')
+    `);
+
     // Delete bulletins older than 2 years
     const bulletinResult = await pool.query(`
       DELETE FROM bulletins 
@@ -22,6 +35,12 @@ async function cleanupOldData() {
     
     if (messageResult.rowCount > 0) {
       console.log(`✓ Deleted ${messageResult.rowCount} messages older than 1 year`);
+    }
+
+    // Now remove the uploaded files themselves
+    const removed = await destroyFiles([...oldBulletinFiles.rows, ...oldMessageFiles.rows]);
+    if (removed > 0) {
+      console.log(`✓ Removed ${removed} stored files from Cloudinary`);
     }
     
     // Clean up orphaned thread participants (threads where all messages are deleted)
@@ -52,8 +71,6 @@ async function cleanupOldData() {
     if (orphanedMessageReads.rowCount > 0) {
       console.log(`✓ Cleaned up ${orphanedMessageReads.rowCount} orphaned message read entries`);
     }
-    
-    // Note: Attachments are automatically deleted via CASCADE when bulletins/messages are deleted
     
     console.log('✓ Data cleanup completed');
     

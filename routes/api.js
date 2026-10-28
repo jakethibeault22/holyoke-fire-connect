@@ -6,6 +6,7 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const backup = require('../scripts/backup');
+const cloudFiles = require('../scripts/cloudinary-files');
 const { pool } = require('../config/db');
 
 const {
@@ -226,13 +227,16 @@ try {
       return {
         folder: 'holyoke-fire-connect',
         resource_type: isImage ? 'image' : isVideo ? 'video' : 'raw',
-        type: 'upload',
+                type: 'upload',
         public_id: `${baseName}.${ext}`,
+        ...(isImage && !/^(gif|svg)$/.test(ext)
+          ? { transformation: [{ width: 1920, height: 1920, crop: 'limit', quality: 'auto' }] }
+          : {}),
       };
     },
   });
 
-  upload = multer({ storage: cloudinaryStorage, limits: { fileSize: 200 * 1024 * 1024 } });
+  upload = multer({ storage: cloudinaryStorage, limits: { fileSize: 100 * 1024 * 1024 } });
   console.log('✔ Cloudinary storage configured');
 } catch (err) {
   console.warn('⚠ Cloudinary not available, falling back to local disk storage:', err.message);
@@ -842,12 +846,12 @@ router.delete('/bulletins/:id', h(async (req, res) => {
   }
 }));
 
-router.get('/bulletins/:id/attachments', h(async (req, res) => {
-  const bulletinId = parseInt(req.params.id, 10);
-  if (!(await userCanViewBulletinId(req.user, bulletinId))) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-  res.json(await getAttachmentsByBulletin(bulletinId));
+router.delete('/messages/:id', h(async (req, res) => {
+  const messageId = parseInt(req.params.id, 10);
+  const files = await cloudFiles.filesOfMessage(pool, messageId);
+  const result = await deleteMessage(messageId, req.user.id);
+  if (result.changes > 0) cloudFiles.destroyFiles(files);
+  res.json({ success: result.changes > 0 });
 }));
 
 // Download/serve bulletin attachment (Cloudinary redirect, or local disk for legacy files)
@@ -1095,7 +1099,10 @@ router.delete('/attachments/:id', h(async (req, res) => {
   if (!isAdminUser(req.user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
-  const result = await deleteAttachment(parseInt(req.params.id, 10));
+    const attachmentId = parseInt(req.params.id, 10);
+  const files = await cloudFiles.filesOfAttachment(pool, attachmentId);
+  const result = await deleteAttachment(attachmentId);
+  if (result.changes > 0) cloudFiles.destroyFiles(files);
   res.json({ success: result.changes > 0 });
 }));
 
@@ -1301,9 +1308,11 @@ router.post('/files', upload.single('file'), h(async (req, res) => {
 // Uploaders can delete their own files; admins can delete any
 router.delete('/files/:id', h(async (req, res) => {
   const fileId = parseInt(req.params.id, 10);
+  const files = await cloudFiles.filesOfLibraryEntry(pool, fileId);
   const result = isAdminUser(req.user)
     ? await pool.query('DELETE FROM file_library WHERE id = $1', [fileId])
     : await pool.query('DELETE FROM file_library WHERE id = $1 AND uploaded_by = $2', [fileId, req.user.id]);
+	  if (result.rowCount > 0) cloudFiles.destroyFiles(files);
   res.json({ success: result.rowCount > 0 });
 }));
 
@@ -1314,12 +1323,34 @@ router.get('/files/:id/download', h(async (req, res) => {
   sendStoredFile(res, result.rows[0]);
 }));
 
+router.get('/storage/usage', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  try {
+    res.json(await cloudFiles.getUsage());
+  } catch (err) {
+    console.error('Storage usage error:', err.message);
+    res.status(502).json({ error: 'Could not read usage from Cloudinary' });
+  }
+}));
+
+router.post('/storage/sweep', h(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const result = await cloudFiles.sweepOrphans(pool, { dryRun: !(req.body && req.body.delete === true) });
+    if (result.error) return res.status(400).json(result);
+    res.json(result);
+  } catch (err) {
+    console.error('Storage sweep error:', err.message);
+    res.status(502).json({ error: 'Could not check Cloudinary' });
+  }
+}));
+
 // ---------------------------------------------------------------------------
 // Error handler (must be last)
 // ---------------------------------------------------------------------------
 router.use((err, req, res, next) => {
-  if (err && err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'File too large (200MB max)' });
+    if (err && /file size too large|too large/i.test(String(err.message || (err.error && err.error.message) || ''))) {
+    return res.status(413).json({ error: 'File too large. Limits: photos 10MB, videos 100MB, documents 10MB.' });
   }
   console.error('API error:', err);
   res.status(500).json({ error: 'Server error' });

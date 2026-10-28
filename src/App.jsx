@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import DisplayKeys from "./DisplayKeys.jsx";
 import BackupPanel from "./BackupPanel.jsx";
+import StoragePanel from "./StoragePanel.jsx";
 import { Inbox, Megaphone, Send, PlusCircle, Trash2, X, LogOut, Paperclip, Download, Users, Edit, CheckCircle, XCircle, UserPlus, FileText, File, Menu } from "lucide-react";
 
 function Card({ children, className = "", onClick }) {
@@ -2538,6 +2539,7 @@ if (!user) {
 
             {adminTab === 'apron' && <DisplayKeys />}
             {adminTab === 'backups' && <BackupPanel />}
+			            <StoragePanel />
 
             {adminTab === 'authorization' && pendingUsers.length === 0 && passwordResetRequests.length === 0 && (
               <div className="bg-white border rounded-lg shadow-sm p-6 text-gray-600">
